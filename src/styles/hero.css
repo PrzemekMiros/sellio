@@ -68,7 +68,8 @@
   height: 22px;
   object-fit: contain;
   border-radius: 3px;
-}
+} 
+
 .hero-channel-icons > span {
   display: flex;
   justify-content: center;
