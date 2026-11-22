@@ -20,7 +20,13 @@ async function importCatalog(id: string, input: Record<string, unknown>) {
     while (page <= pages && page <= 100) {
       const response = await fetch(`${siteUrl}/wp-json/sellio/v1/products?page=${page}&per_page=100`, { headers: { 'X-Sellio-Catalog-Token': input.catalog_token }, signal: AbortSignal.timeout(15_000) });
       const products = await response.json().catch(() => null);
-      if (!response.ok || !Array.isArray(products)) throw new Error('Nieprawidłowa odpowiedź katalogu WordPress.');
+      if (!response.ok) {
+        const retryAfter = response.headers.get('retry-after');
+        if (response.status === 429) throw new Error(`Serwer WordPress ograniczył liczbę zapytań. Odczekaj ${retryAfter ? `${retryAfter} sekund` : 'kilka minut'} i spróbuj ponownie.`);
+        if (response.status === 401 || response.status === 403) throw new Error('Token katalogu jest nieprawidłowy lub wygasł. Wygeneruj nowy token we wtyczce WordPress.');
+        throw new Error(`Katalog WordPress zwrócił HTTP ${response.status}.`);
+      }
+      if (!Array.isArray(products)) throw new Error('Katalog WordPress zwrócił nieprawidłowy format odpowiedzi.');
       pages = Math.max(1, Number(response.headers.get('x-wp-totalpages') ?? 1));
       await Promise.all(products.map(product => {
         if (!product || typeof product.id !== 'string') throw new Error('Nieprawidłowy produkt w katalogu.');
@@ -54,7 +60,8 @@ export default async (request: Request) => {
       const siteUrl = validUrl(input.catalog_url); if (typeof input.catalog_token !== 'string' || !input.catalog_token) throw new Error('Token katalogu jest wymagany.');
       const response = await fetch(`${siteUrl}/wp-json/sellio/v1/connection`, { headers: { 'X-Sellio-Catalog-Token': input.catalog_token }, signal: AbortSignal.timeout(15_000) });
       const catalog = await response.json().catch(() => null);
-      if (!response.ok || !catalog || catalog.contract_version !== '1') throw new Error('Nieprawidłowa odpowiedź katalogu WordPress.');
+      if (!response.ok) throw new Error(`Katalog WordPress zwrócił HTTP ${response.status}. Sprawdź token katalogu.`);
+      if (!catalog || catalog.contract_version !== '1') throw new Error('Katalog WordPress zwrócił nieprawidłowy format odpowiedzi.');
       await blobs.setJSON(`store:${match[1]}`, { ...current, metadata: { ...current.metadata, catalog_status: 'connected', catalog_checked_at: new Date().toISOString(), catalog }, updated_at: new Date().toISOString() });
       return json({ connected: true, catalog });
     } catch (error) { return json({ error: error instanceof Error ? error.message : 'Catalog unavailable' }, 502); }
