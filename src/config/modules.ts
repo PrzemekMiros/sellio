@@ -72,6 +72,10 @@ export const navigation: NavigationItem[] = [
   ], 'Marketplace'),
   submenu('Skroutz V2', 'skroutz-v2', 'store', marketplaceEntries, 'Marketplace'),
   submenu('InPost Von Halsky', 'inpost-von-halsky', 'store', marketplaceEntries, 'Marketplace'),
+  submenu('OLX', 'olx', 'store', marketplaceEntries, 'Marketplace'),
+  submenu('Ceneo', 'ceneo', 'store', marketplaceEntries, 'Marketplace'),
+  submenu('ERLI', 'erli', 'store', marketplaceEntries, 'Marketplace'),
+  submenu('eBay', 'ebay', 'store', marketplaceEntries, 'Marketplace'),
 ];
 
 export const menuModules = navigation.flatMap(item => item.children ?? (item.module ? [item.module] : []));

@@ -875,6 +875,7 @@ h1 {
 /* The product list is live; suppress the shared placeholder reserved for unfinished modules. */
 main:has(.wordpress-products) .module-placeholder,
 main:has(.wordpress-products) .page-heading .neutral-badge { display: none; }
+main:has(.wordpress-setup) .module-placeholder { display: none; }
 .mobile-only {
   display: none;
 }
