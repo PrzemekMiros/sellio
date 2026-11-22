@@ -1,0 +1,30 @@
+---
+import Icon from './Icon.astro';
+---
+<button type="button" class="theme-toggle icon-button" aria-label="Tryb ciemny" aria-pressed="false" title="Tryb ciemny">
+  <span class="theme-moon"><Icon name="moon" size={19} /></span><span class="theme-sun"><Icon name="sun" size={19} /></span>
+</button>
+<script>
+  const button = document.querySelector<HTMLButtonElement>('.theme-toggle')!;
+  function setTheme(theme: 'light' | 'dark') {
+    document.documentElement.dataset.theme = theme;
+    button.setAttribute('aria-pressed', String(theme === 'dark'));
+    button.title = theme === 'dark' ? 'Włącz tryb jasny' : 'Włącz tryb ciemny';
+  }
+  setTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+  button.addEventListener('click', () => {
+    const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    setTheme(theme);
+    try { localStorage.setItem('sellio-admin-theme', theme); } catch { /* Theme still works without storage. */ }
+  });
+  window.addEventListener('storage', event => {
+    if (event.key === 'sellio-admin-theme' || event.key === null) setTheme(event.newValue === 'dark' ? 'dark' : 'light');
+  });
+</script>
+<style>
+  .theme-toggle{display:flex;align-items:center;justify-content:center;flex-shrink:0;border-radius:50%;height:36px;width:36px}
+  .theme-moon,.theme-sun{display:flex}
+  .theme-sun{display:none}
+  :global(html[data-theme="dark"]) .theme-moon{display:none}
+  :global(html[data-theme="dark"]) .theme-sun{display:flex}
+</style>

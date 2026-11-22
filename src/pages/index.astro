@@ -1,0 +1,18 @@
+---
+import '../styles/landing.css';
+import '../styles/hero.css';
+import '../styles/features.css';
+import '../styles/navigation.css';
+import LandingNav from '../components/landing/LandingNav.astro';
+import Hero from '../components/landing/Hero.astro';
+import Features from '../components/landing/Features.astro';
+import Modules from '../components/landing/Modules.astro';
+import Integrations from '../components/landing/Integrations.astro';
+import LandingFooter from '../components/landing/LandingFooter.astro';
+import { site } from '../config/site';
+---
+<!doctype html>
+<html lang="pl">
+  <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width" /><meta name="description" content="Sellio — demonstracyjny panel do obsługi sprzedaży na Allegro i w Wordpress. Poznaj planowane moduły zamówień, ofert, stanów magazynowych i wysyłek." /><meta name="theme-color" content="#0d0e11" /><title>{site.name} — Allegro i Wordpress w jednym panelu</title><link rel="icon" href="/landing-favicon.svg" type="image/svg+xml" /></head>
+  <body><a class="skip-link" href="#main">Przejdź do treści</a><LandingNav /><main id="main"><Hero /><Features /><Modules /><Integrations /><LandingFooter /></main></body>
+</html>

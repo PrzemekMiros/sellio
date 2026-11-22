@@ -1,0 +1,50 @@
+/* Default light workspace; the sidebar stays graphite in both themes. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  color: #191b23;
+  background: #eceef2;
+  --surface: #fff;
+  --surface-deep: #20232b;
+  --muted: #47515f;
+  --border: #cfd5dd;
+}
+:root[data-theme="light"] .sidebar { color: #edf0f4; --border: #48515b; }
+:root[data-theme="light"] .nav-link { color: #edf0f4; }
+:root[data-theme="light"] .nav-link.active { color: #ff9b51; background: #1b232b; }
+:root[data-theme="light"] .nav-link:hover { background: #222b33; color: #ffad70; }
+:root[data-theme="light"] .nav-label { color: #b2bcc8; }
+:root[data-theme="light"] .sidebar-bottom { border-color: #48515b; }
+:root[data-theme="light"] .sidebar-bottom div > span { color: #b8c2ce; }
+:root[data-theme="light"] .topbar { border-bottom: 1px solid #e8ebef; }
+:root[data-theme="light"] :is(.breadcrumb-parent, .overview-label, .page-footer) { color: #47515f; }
+:root[data-theme="light"] .breadcrumb-separator { color: #66717f; }
+:root[data-theme="light"] .prototype-badge { color: #414b59; background: #f8f9fb; border-color: #e0e5eb; }
+:root[data-theme="light"] .topbar-divider { background: #e0e5eb; }
+:root[data-theme="light"] .icon-button { background: #fff; color: #414b59; border-color: #dce1e8; }
+:root[data-theme="light"] #menu-close { color: #eef1f5; background: #252e37; border-color: #56616c; }
+:root[data-theme="light"] :is(.welcome-banner, .metric-card, .orders-panel, .getting-started, .module-placeholder, .integration-card) { background: #fff; box-shadow: 0 2px 5px #202a391c, 0 6px 20px #202a390d; border: 1px solid #d4d9e1; }
+:root[data-theme="light"] :is(h1, h2, h3, .welcome-content h2, .metric-top h2, .empty-orders h3, .start-step h3) { color: #191b23; }
+:root[data-theme="light"] :is(.page-heading > div > p:last-child, .welcome-content > p, .metric-detail, .panel-heading p, .empty-orders p, .getting-started > p, .start-step p, .preview-note p, .module-placeholder > p, .integration-card p) { color: #47515f; }
+:root[data-theme="light"] :is(.eyebrow, .banner-note, .metric-bottom) { color: #535e6b; }
+:root[data-theme="light"] :is(.banner-kicker, .section-kicker, .ready-label, .text-link) { color: #a63d08; }
+:root[data-theme="light"] .metric-value { color: #b8470b; }
+:root[data-theme="light"] .metric-icon { color: #ad4b12; }
+:root[data-theme="light"] :is(.metric-bottom, .panel-heading, .preview-note) { border-color: #dce1e8; }
+:root[data-theme="light"] .count-badge { color: #47515f; background: #f6f7f9; border-color: #e1e5eb; }
+:root[data-theme="light"] .empty-illustration { background: #fff4e9; color: #ba713e; }
+:root[data-theme="light"] .empty-illustration > span { background: #fce6d5; border-color: #fff; }
+:root[data-theme="light"] .panel-footer { border-color: #dce1e8; background: #fafbfc; color: #535e6b; }
+:root[data-theme="light"] .step-icon { background: #fff0e2; color: #ad4b12; }
+:root[data-theme="light"] .step-icon.muted { background: #f2f4f7; color: #586575; }
+:root[data-theme="light"] .soon-label { background: #f1f3f6; color: #47515f; }
+:root[data-theme="light"] .preview-note { color: #586575; }
+:root[data-theme="light"] .neutral-badge { color: #47515f; background: #f4f6f8; border-color: #dfe4eb; }
+:root[data-theme="light"] :is(.large-icon, .integration-logo) { background: #fff0e2; color: #cd6b24; border-color: #f1dac8; }
+:root[data-theme="light"] .art-mini { background: #fff; color: #ca7131; border-color: #eadccf; }
+:root[data-theme="light"] .art-orbit { border-color: #e6c6af; }
+:root[data-theme="light"] .art-tile { color: #c67943; background: #fff; border-color: #eee0d5; box-shadow: 0 5px 15px #b1784410; }
+:root[data-theme="light"] .tile-center { background: #ff681f; border-color: #ffe1c9; color: #26313b; box-shadow: 0 0 0 9px #fff6ed; }
+:root[data-theme="light"] .connection-line { border-color: #dfb798; }
+:root[data-theme="light"] .art-ring { border-color: #d1a180; }
+:root[data-theme="light"] .art-spark { color: #c9926c; }
+@media (max-width: 620px) { .topbar-right .prototype-badge { display: none; } .topbar-right { gap: 10px; } }

@@ -1,0 +1,17 @@
+---
+import ProductPreview from './ProductPreview.astro';
+import Icon from '../Icon.astro';
+const features = [
+  { variant:'orders' as const, kicker:'OD ZAMÓWIENIA DO REALIZACJI', title:'Wszystkie zamówienia w jednym widoku', text:'Docelowo zamówienia z Allegro i Wordpress trafią do wspólnej listy. Sprawdzisz kanał sprzedaży, płatność i etap realizacji bez przełączania między systemami.', points:['Wspólna lista zamówień', 'Statusy płatności', 'Allegro i Wordpress', 'Etapy realizacji'], href:'/admin/zamowienia/lista' },
+  { variant:'inventory' as const, kicker:'MAGAZYN I SYNCHRONIZACJA', title:'Stany i ceny pod kontrolą', text:'Planujemy połączenie katalogu Wordpress z ofertami Allegro. Powiązania produktów, dostępność i status synchronizacji będą widoczne w jednym miejscu.', points:['Powiązania produktów', 'Dostępność w magazynie', 'Ceny sprzedaży', 'Status synchronizacji'], href:'/admin/stany-i-ceny' },
+  { variant:'templates' as const, kicker:'OD PRODUKTU DO OFERTY', title:'Oferty Allegro z gotowych szablonów', text:'Przygotujesz spójne opisy z sekcji tekstu i zdjęć. Planowany edytor pozwoli przypisać szablony do kategorii i wykorzystać je w kolejnych ofertach.', points:['Sekcje tekstu', 'Zdjęcia produktów', 'Przypisanie do kategorii', 'Podgląd opisu oferty'], href:'/admin/allegro/szablony-ofert' },
+  { variant:'shipping' as const, kicker:'OD PAKOWANIA DO NADANIA', title:'Od zamówienia do nadania paczki', text:'Planowana obsługa wysyłek połączy zamówienie z przesyłką. W jej karcie znajdziesz status etykiety, numer śledzenia i informacje potrzebne przy nadaniu.', points:['Powiązane zamówienie', 'Karta przesyłki', 'Status etykiety', 'Numer śledzenia'], href:'/admin/wysylki' },
+];
+---
+<section id="funkcje" class="features-section container" aria-labelledby="features-title">
+  <div class="section-intro"><span class="eyebrow">MNIEJ PRZEŁĄCZANIA. WIĘCEJ KONTROLI.</span><h2 id="features-title">Jeden panel.<br /><span class="soft-text">Cały proces sprzedaży.</span></h2><p>Tak projektujemy Twoją przyszłą codzienną pracę.</p></div>
+  {features.map((feature, index) => <article class:list={['feature-section', { reversed: index % 2 === 1 }]}>
+    <div class="feature-copy"><span class="eyebrow">{feature.kicker}</span><h2>{feature.title}</h2><p>{feature.text}</p><ul>{feature.points.map((point, i) => <li><span class="benefit-icon"><Icon name={['layout', 'activity', 'plug', 'check'][i]} size={15} /></span>{point}</li>)}</ul><div class="feature-link-row"><a href={feature.href}>Zobacz moduł w demo <span class="link-icon"><Icon name="dashboard" size={16} /></span></a><span class="planned-label">Planowana funkcja</span></div></div>
+    <div class="feature-visual"><ProductPreview variant={feature.variant} /></div>
+  </article>)}
+</section>

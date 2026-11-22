@@ -1,0 +1,7 @@
+---
+import { modules } from '../../config/modules';
+import Icon from '../Icon.astro';
+const slugs = ['zamowienia', 'oferty-allegro', 'stany-i-ceny', 'produkty', 'szablony-ofert', 'wysylki', 'dokumenty', 'zwroty-i-reklamacje', 'automatyzacje', 'integracje', 'raporty', 'dziennik-zdarzen', 'ustawienia'];
+const items = slugs.map(slug => modules.find(module => module.slug === slug)!);
+---
+<section class="modules-section"><div class="container"><div class="light-section-heading"><span class="eyebrow">PRZESTRZEŃ, KTÓRA PORZĄDKUJE SPRZEDAŻ</span><h2>Moduły panelu</h2><p>Od katalogu produktów po ostatnią paczkę.<br />Poznaj planowany zakres swojej przestrzeni roboczej.</p></div><div class="modules-grid">{items.map((module, index) => <a href={module.href} class:list={['module-tile', { featured: index === 0 }]}><span class="module-icon"><Icon name={module.icon} size={22} /></span><span class="module-status">W przygotowaniu</span><h3>{module.name}</h3><p>{module.description}</p><span class="module-link">Zobacz podgląd <Icon name="dashboard" size={13} /></span></a>)}</div></div></section>

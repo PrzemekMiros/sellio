@@ -1,0 +1,20 @@
+---
+import Icon from '../Icon.astro';
+import { site, landingLinks } from '../../config/site';
+---
+<div class="landing-header"><header class="landing-nav container">
+  <a class="wordmark" href="/" aria-label={`${site.name} — strona główna`}><span class="logo-mark">s</span>{site.name.toLowerCase()}<span class="orange">.</span></a>
+  <nav class="desktop-nav" aria-label="Nawigacja strony">{landingLinks.map(link => <a href={link.href}>{link.name}</a>)}</nav>
+  <div class="nav-actions"><a class="nav-panel-link" href={site.demoUrl}>Panel sprzedawcy</a><a class="button compact" href={site.demoUrl}>Zobacz demo</a><button class="mobile-toggle" aria-label="Otwórz menu" aria-expanded="false" aria-controls="landing-mobile"><Icon name="menu" /></button></div>
+  <nav id="landing-mobile" class="mobile-nav" aria-label="Nawigacja mobilna" hidden>{landingLinks.map(link => <a href={link.href}>{link.name}</a>)}</nav>
+</header></div>
+<script>
+  const toggle = document.querySelector<HTMLButtonElement>('.mobile-toggle')!;
+  const menu = document.querySelector<HTMLElement>('#landing-mobile')!;
+  function closeMenu() { menu.hidden = true; toggle.setAttribute('aria-expanded', 'false'); toggle.setAttribute('aria-label', 'Otwórz menu'); }
+  toggle.addEventListener('click', () => { const open = menu.hidden; menu.hidden = !open; toggle.setAttribute('aria-expanded', String(open)); toggle.setAttribute('aria-label', open ? 'Zamknij menu' : 'Otwórz menu'); });
+  menu.querySelectorAll('a').forEach(link => link.addEventListener('click', closeMenu));
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !menu.hidden) { closeMenu(); toggle.focus(); } });
+  document.addEventListener('click', event => { if (event.target instanceof Node && !event.target.parentElement?.closest('.landing-nav')) closeMenu(); });
+  window.matchMedia('(min-width: 761px)').addEventListener('change', closeMenu);
+</script>

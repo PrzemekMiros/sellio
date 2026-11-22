@@ -1,0 +1,27 @@
+---
+import { navigation, type Module } from '../config/modules';
+import Icon from './Icon.astro';
+interface Props { module: Module }
+const { module } = Astro.props;
+---
+<nav aria-label="Nawigacja główna">
+  {navigation.map((item, index) => <>
+    {item.section && item.section !== navigation[index - 1]?.section && <p class="nav-label marketplace-label">{item.section}</p>}
+    {item.children ? <details class="nav-disclosure" open={item.children.some(child => child.href === module.href)}>
+      <summary class:list={['nav-link', { 'parent-active': item.children.some(child => child.href === module.href) }]}><Icon name={item.icon} /><span>{item.name}</span><span class="nav-chevron"><Icon name="chevron" size={14} /></span></summary>
+      <div class="nav-children">{item.children.map(child => <a href={child.href} class:list={['nav-link', { active: child.href === module.href }]} aria-current={child.href === module.href ? 'page' : undefined}>{child.name}</a>)}</div>
+    </details> : item.module && <a href={item.module.href} class:list={['nav-link', { active: item.module.href === module.href }]} aria-current={item.module.href === module.href ? 'page' : undefined}><Icon name={item.icon} /><span>{item.name}</span>{item.module.href === module.href && <span class="active-dot"></span>}</a>}
+  </>)}
+</nav>
+<style>
+  .marketplace-label{margin-top:28px;padding-top:21px;border-top:1px solid var(--border)}
+  summary{cursor:pointer;list-style:none;user-select:none}
+  summary::-webkit-details-marker{display:none}
+  summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .nav-chevron{display:flex;margin-left:auto;transition:transform .15s}
+  details[open] .nav-chevron{transform:rotate(90deg)}
+  .parent-active{color:var(--accent);font-weight:650}
+  .nav-children{margin:5px 0 12px 21px;padding-left:10px;border-left:1px solid var(--border)}
+  .nav-children .nav-link{font-size:13px;line-height:1.5;min-height:35px;padding:7px 9px}
+  @media(prefers-reduced-motion:reduce){.nav-chevron{transition:none}}
+</style>
