@@ -26,9 +26,11 @@ Backend udostępnia dokładnie kontrakt wymagany przez wtyczkę: `GET /v1/connec
 
 > Formularz administracyjny jest narzędziem konfiguracji dla zaufanego panelu. Przed publikacją nie wystawiaj `BACKEND_ADMIN_KEY` w otwartym internecie: umieść panel i backend za logowaniem albo zastąp nagłówek sesją użytkownika po stronie serwera.
 
-## Render
+## Netlify
 
-Repozytorium zawiera `render.yaml`. W Render wybierz **New → Blueprint**, wskaż to repozytorium i utwórz usługę `sellio-backend`. Render odczyta polecenia budowania, endpoint kontroli zdrowia i trwały dysk SQLite z pliku. W formularzu wdrożenia podaj tylko wartości oznaczone jako sekretne: `BACKEND_ADMIN_KEY` i `TOKEN_ENCRYPTION_KEY`. Po wdrożeniu skopiuj publiczny adres usługi `https://…onrender.com` do pola „Adres backendu” w panelu Sellio.
+Panel i endpointy integracji mogą działać na tej samej stronie Netlify. Katalog `netlify/functions` zawiera funkcje dla `/v1/connector/*` oraz `/v1/admin/*`, a trwałe dane połączeń i zdarzeń są przechowywane w site-wide Netlify Blobs.
+
+W Netlify otwórz **Project configuration → Environment variables** i dodaj `BACKEND_ADMIN_KEY` jako sekret dostępny dla **Functions**. Następnie uruchom ponowne wdrożenie. W panelu wpisz `https://allsellio.netlify.app` jako adres backendu i tę samą wartość sekretu jako klucz administratora.
 
 ## Uruchomienie
 
