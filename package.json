@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev --host 0.0.0.0",
+    "backend": "node --experimental-strip-types backend/server.ts",
     "build": "astro build",
     "preview": "astro preview --host 0.0.0.0",
     "check": "astro check",

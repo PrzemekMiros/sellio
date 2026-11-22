@@ -1,0 +1,13 @@
+openapi: 3.0.3
+info: {title: Sellio Connector, version: '1'}
+paths:
+  /wp-json/sellio/v1/connection: {get: {security: [{CatalogToken: []}], responses: {'200': {description: Integration metadata}}}
+  /wp-json/sellio/v1/products: {get: {security: [{CatalogToken: []}], parameters: [{name: page, in: query}, {name: per_page, in: query}, {name: modified_after, in: query}], responses: {'200': {description: Product page}}}}
+  /wp-json/sellio/v1/products/{id}: {get: {security: [{CatalogToken: []}], parameters: [{name: id, in: path, required: true}], responses: {'200': {description: Product}}}}
+  /wp-json/sellio/v1/products/{id}/variations: {get: {security: [{CatalogToken: []}], parameters: [{name: id, in: path, required: true}], responses: {'200': {description: Variations}}}}
+  /v1/connector/connection: {get: {security: [{BearerAuth: []}], responses: {'200': {description: Sellio connection assertion}}}
+  /v1/connector/events: {post: {security: [{BearerAuth: []}], parameters: [{name: Idempotency-Key, in: header, required: true}], responses: {'200': {description: Accepted}, '202': {description: Accepted}}}}
+components:
+  securitySchemes:
+    CatalogToken: {type: apiKey, in: header, name: X-Sellio-Catalog-Token}
+    BearerAuth: {type: http, scheme: bearer}

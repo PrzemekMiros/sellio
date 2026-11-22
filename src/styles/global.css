@@ -856,6 +856,19 @@ h1 {
   font-size: 0.75rem;
   padding: 5px 7px;
 }
+.wordpress-setup { margin-top: 28px; padding: 28px; background: white; border: 1px solid var(--border); border-radius: 10px; }
+.wordpress-setup h2 { margin-top: 3px; font-size: 22px; }
+.setup-intro { max-width: 720px; margin: 10px 0 22px; color: var(--muted); line-height: 1.6; }
+.integration-state { font-size: .8rem; padding: 6px 9px; border-radius: 999px; color: #8a5a1b; background: #fff2dc; }
+.integration-state.pending { color: #1e5b89; background: #e5f3ff; }.integration-state.error { color: #982b2b; background: #ffe8e8; }
+.integration-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: 780px; }
+.integration-form label { display: grid; gap: 7px; color: var(--text); font-size: .875rem; font-weight: 600; }
+.integration-form input { padding: 10px 11px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--surface); font: inherit; }
+.integration-form button { justify-self: start; border: 0; display: inline-flex; align-items: center; gap: 7px; }
+.catalog-details { grid-column: 1 / -1; color: var(--muted); }.catalog-details summary { cursor: pointer; color: var(--text); font-weight: 600; }.catalog-details p { margin: 10px 0; font-size: .875rem; line-height: 1.55; }
+.credentials-box { margin-top: 24px; max-width: 780px; padding: 20px; border: 1px solid #f2c99c; border-radius: 8px; background: #fffaf4; }.credentials-box h3 { margin: 4px 0 7px; }.credentials-box p { margin: 0; color: var(--muted); line-height: 1.55; }
+.credentials-box dl { margin: 18px 0; display: grid; gap: 10px; }.credentials-box dl div { display: grid; grid-template-columns: 115px 1fr; gap: 12px; }.credentials-box dt { color: var(--muted); }.credentials-box dd { margin: 0; overflow-wrap: anywhere; font-family: ui-monospace, monospace; font-size: .85rem; }
+.integration-feedback { min-height: 1.4em; margin: 16px 0 0; color: var(--muted); }
 .mobile-only {
   display: none;
 }

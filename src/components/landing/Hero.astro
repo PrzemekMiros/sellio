@@ -8,7 +8,7 @@ import { site } from '../../config/site';
   <div class="hero-orbits" aria-hidden="true"><span class="hero-orbit outer"><i><Icon name="bag" size={23} /></i></span><span class="hero-orbit middle"><i><Icon name="store" size={22} /></i></span><span class="hero-orbit inner"><i><Icon name="truck" size={22} /></i></span></div>
   <div class="hero-stars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
   <div class="container hero-content">
-    <div class="hero-badge"><span class="hero-channel-icons" aria-hidden="true"><span>a</span><span><Icon name="store" size={20} /></span><span><Icon name="box" size={20} /></span><span><Icon name="truck" size={20} /></span></span><span>Twoje kanały sprzedaży. Jedna przestrzeń.</span></div>
+    <div class="hero-badge"><span class="hero-channel-icons">{[{ name: 'Allegro', file: 'allegro.ico' }, { name: 'eBay', file: 'ebay.ico' }, { name: 'Wordpress', file: 'wordpress.png' }, { name: 'Fakturownia', file: 'fakturownia.png' }, { name: 'Apaczka', file: 'apaczka.svg' }].map(brand => <span title={brand.name}><img src={`/brands/${brand.file}`} alt={brand.name} width="22" height="22" /></span>)}</span><span>Twoje kanały sprzedaży. Jedna przestrzeń.</span></div>
     <h1>Marketplace'y<br /><span>w jednym panelu</span></h1>
     <p class="hero-description">Panel do obsługi zamówień, ofert, stanów magazynowych i wysyłek. <br />Zobacz demonstrację interfejsu i planowany zakres funkcji.</p>
     <form class="hero-actions" action={site.demoUrl} method="get" aria-label="Otwórz demo panelu">
