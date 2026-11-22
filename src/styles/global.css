@@ -869,6 +869,7 @@ h1 {
 .credentials-box { margin-top: 24px; max-width: 780px; padding: 20px; border: 1px solid #f2c99c; border-radius: 8px; background: #fffaf4; }.credentials-box h3 { margin: 4px 0 7px; }.credentials-box p { margin: 0; color: var(--muted); line-height: 1.55; }
 .credentials-box dl { margin: 18px 0; display: grid; gap: 10px; }.credentials-box dl div { display: grid; grid-template-columns: 115px 1fr; gap: 12px; }.credentials-box dt { color: var(--muted); }.credentials-box dd { margin: 0; overflow-wrap: anywhere; font-family: ui-monospace, monospace; font-size: .85rem; }
 .integration-feedback { min-height: 1.4em; margin: 16px 0 0; color: var(--muted); }
+.wordpress-import { margin-top: 20px; padding: 28px; background: white; border: 1px solid var(--border); border-radius: 10px; }.wordpress-import h2 { margin: 3px 0 7px; font-size: 20px; }.wordpress-import > div > p { max-width: 760px; margin: 0 0 20px; color: var(--muted); line-height: 1.55; }.full-width { grid-column: 1 / -1; }
 .mobile-only {
   display: none;
 }

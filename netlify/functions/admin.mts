@@ -11,6 +11,29 @@ const validUrl = (value: unknown) => { if (typeof value !== 'string') throw new 
 const authorize = (request: Request) => { const key = process.env.BACKEND_ADMIN_KEY ?? ''; const supplied = request.headers.get('x-backend-admin-key') ?? ''; return key && supplied && same(hash(supplied), hash(key)); };
 const find = async (id: string) => (await blobs.get(`store:${id}`, { type: 'json' })) as Connection | null;
 
+async function importCatalog(id: string, input: Record<string, unknown>) {
+  const current = await find(id); if (!current) return json({ error: 'Store not found' }, 404);
+  const siteUrl = validUrl(input.catalog_url);
+  if (typeof input.catalog_token !== 'string' || !input.catalog_token) return json({ error: 'Token katalogu jest wymagany.' }, 400);
+  let imported = 0, page = 1, pages = 1;
+  try {
+    while (page <= pages && page <= 100) {
+      const response = await fetch(`${siteUrl}/wp-json/sellio/v1/products?page=${page}&per_page=100`, { headers: { 'X-Sellio-Catalog-Token': input.catalog_token }, signal: AbortSignal.timeout(15_000) });
+      const products = await response.json().catch(() => null);
+      if (!response.ok || !Array.isArray(products)) throw new Error('Nieprawidłowa odpowiedź katalogu WordPress.');
+      pages = Math.max(1, Number(response.headers.get('x-wp-totalpages') ?? 1));
+      await Promise.all(products.map(product => {
+        if (!product || typeof product.id !== 'string') throw new Error('Nieprawidłowy produkt w katalogu.');
+        return blobs.setJSON(`product:${id}:${product.id}`, { ...product, store_id: id, imported_at: new Date().toISOString() });
+      }));
+      imported += products.length; page++;
+    }
+    if (page <= pages) throw new Error('Katalog jest zbyt duży dla jednorazowego importu.');
+    await blobs.setJSON(`store:${id}`, { ...current, metadata: { ...current.metadata, catalog_status: 'imported', catalog_imported_at: new Date().toISOString(), product_count: imported }, updated_at: new Date().toISOString() });
+    return json({ imported, pages: page - 1 });
+  } catch (error) { return json({ error: error instanceof Error ? error.message : 'Catalog unavailable' }, 502); }
+}
+
 export default async (request: Request) => {
   if (!authorize(request)) return json({ error: 'Unauthorized' }, 401);
   const url = new URL(request.url);
@@ -35,6 +58,11 @@ export default async (request: Request) => {
       await blobs.setJSON(`store:${match[1]}`, { ...current, metadata: { ...current.metadata, catalog_status: 'connected', catalog_checked_at: new Date().toISOString(), catalog }, updated_at: new Date().toISOString() });
       return json({ connected: true, catalog });
     } catch (error) { return json({ error: error instanceof Error ? error.message : 'Catalog unavailable' }, 502); }
+  }
+  const importMatch = url.pathname.match(/^\/v1\/admin\/wordpress\/stores\/([\w-]+)\/catalog\/import$/);
+  if (request.method === 'POST' && importMatch) {
+    let input: Record<string, unknown>; try { input = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
+    return importCatalog(importMatch[1], input);
   }
   return json({ error: 'Not found' }, 404);
 };

@@ -19,6 +19,18 @@ import Icon from './Icon.astro';
   </div>
   <p class="integration-feedback" role="status" data-feedback></p>
 </section>
+<section class="wordpress-import" aria-labelledby="wordpress-import-title">
+  <div><span class="eyebrow">KATALOG PRODUKTÓW</span><h2 id="wordpress-import-title">Zaimportuj produkty z WooCommerce</h2><p>W WordPress kliknij „Wygeneruj/rotuj token katalogu”, skopiuj jednorazowy token i wklej go poniżej razem z ID sklepu widocznym w ustawieniach wtyczki.</p></div>
+  <form class="integration-form" data-import-form>
+    <label>Adres backendu<input name="backend_url" type="url" value="https://allsellio.netlify.app" required /></label>
+    <label>Klucz administratora backendu<input name="admin_key" type="password" autocomplete="off" required /></label>
+    <label>ID sklepu<input name="store_id" placeholder="wp_…" required /></label>
+    <label>Adres sklepu WordPress<input name="catalog_url" type="url" value="https://automatelab.pl" required /></label>
+    <label class="full-width">Token katalogu WordPress<input name="catalog_token" type="password" autocomplete="off" required /></label>
+    <button class="button button-primary" type="submit"><Icon name="box" size={16} />Importuj produkty</button>
+  </form>
+  <p class="integration-feedback" role="status" data-import-feedback></p>
+</section>
 <script>
   const form = document.querySelector<HTMLFormElement>('[data-connect-form]')!;
   const feedback = document.querySelector<HTMLElement>('[data-feedback]')!;
@@ -46,5 +58,16 @@ import Icon from './Icon.astro';
   document.querySelector<HTMLButtonElement>('[data-copy]')!.addEventListener('click', async () => {
     const api = document.querySelector<HTMLElement>('[data-api-url]')!.textContent; const id = document.querySelector<HTMLElement>('[data-store-id]')!.textContent; const token = document.querySelector<HTMLElement>('[data-api-token]')!.textContent;
     await navigator.clipboard.writeText(`API Sellio: ${api}\nID sklepu: ${id}\nToken API: ${token}`); feedback.textContent = 'Dane skopiowane do schowka.';
+  });
+  const importForm = document.querySelector<HTMLFormElement>('[data-import-form]')!;
+  const importFeedback = document.querySelector<HTMLElement>('[data-import-feedback]')!;
+  importForm.addEventListener('submit', async event => {
+    event.preventDefault(); importFeedback.textContent = 'Importuję katalog produktów…';
+    const input = new FormData(importForm); const url = String(input.get('backend_url')).trim().replace(/\/$/, '');
+    try {
+      const response = await fetch(`${url}/v1/admin/wordpress/stores/${String(input.get('store_id')).trim()}/catalog/import`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Backend-Admin-Key': String(input.get('admin_key')).trim() }, body: JSON.stringify({ catalog_url: String(input.get('catalog_url')).trim(), catalog_token: String(input.get('catalog_token')).trim() }) });
+      const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Import katalogu nie powiódł się.');
+      importFeedback.textContent = `Zaimportowano ${data.imported} produktów w ${data.pages} partiach.`;
+    } catch (error) { importFeedback.textContent = error instanceof Error ? error.message : 'Wystąpił nieznany błąd.'; }
   });
 </script>
