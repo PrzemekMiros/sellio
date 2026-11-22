@@ -22,7 +22,8 @@ import Icon from './Icon.astro';
     try {
       const response = await fetch(`${url}/v1/admin/wordpress/stores/${String(input.get('store_id')).trim()}/catalog/import`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Backend-Admin-Key': String(input.get('admin_key')).trim() }, body: JSON.stringify({ catalog_url: String(input.get('catalog_url')).trim(), catalog_token: String(input.get('catalog_token')).trim() }) });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Import katalogu nie powiódł się.');
-      importFeedback.textContent = `Zaimportowano ${data.imported} produktów w ${data.pages} partiach.`;
+      localStorage.setItem('sellio-product-view', JSON.stringify({ backend_url: input.get('backend_url'), admin_key: input.get('admin_key'), store_id: input.get('store_id') }));
+      importFeedback.textContent = `Zaimportowano ${data.imported} produktów w ${data.pages} partiach. Lista produktów będzie od teraz ładować się automatycznie.`;
     } catch (error) { importFeedback.textContent = error instanceof Error ? error.message : 'Wystąpił nieznany błąd.'; }
   });
 </script>

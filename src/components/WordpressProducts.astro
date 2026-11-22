@@ -2,15 +2,15 @@
 import Icon from './Icon.astro';
 ---
 <section class="wordpress-products" aria-labelledby="wordpress-products-title">
-  <div><span class="eyebrow">KATALOG WOO COMMERCE</span><h2 id="wordpress-products-title">Zaimportowane produkty</h2><p>Podaj dane administratora, aby odczytać katalog zapisany podczas importu.</p></div>
+  <div><span class="eyebrow">KATALOG WOO COMMERCE</span><h2 id="wordpress-products-title">Zaimportowane produkty</h2><p>Katalog odświeża się automatycznie po otwarciu strony. Dane dostępu są zapisywane tylko lokalnie w tej przeglądarce.</p></div>
   <form class="product-load-form" data-products-form>
     <label>Adres backendu<input name="backend_url" type="url" value="https://allsellio.netlify.app" required /></label>
     <label>Klucz administratora backendu<input name="admin_key" type="password" autocomplete="off" required /></label>
     <label>ID sklepu<input name="store_id" placeholder="wp_…" required /></label>
-    <button class="button button-primary" type="submit"><Icon name="box" size={16} />Pokaż produkty</button>
+    <button class="button button-primary" type="submit"><Icon name="box" size={16} />Odśwież produkty</button>
   </form>
   <p class="integration-feedback" role="status" data-products-feedback></p>
-  <div class="products-result" data-products-result hidden><p data-products-count></p><div class="products-table-wrap"><table><thead><tr><th>Produkt</th><th>SKU</th><th>Cena</th><th>Stan</th><th>Status</th></tr></thead><tbody data-products-body></tbody></table></div></div>
+  <div class="products-result" data-products-result hidden><p data-products-count></p><div class="products-table-wrap"><table><thead><tr><th>Zdjęcie</th><th>Produkt</th><th>SKU</th><th>Cena</th><th>Stan</th><th>Status</th></tr></thead><tbody data-products-body></tbody></table></div></div>
 </section>
 <script>
   const form = document.querySelector<HTMLFormElement>('[data-products-form]')!;
@@ -18,6 +18,7 @@ import Icon from './Icon.astro';
   const result = document.querySelector<HTMLElement>('[data-products-result]')!;
   const body = document.querySelector<HTMLTableSectionElement>('[data-products-body]')!;
   const count = document.querySelector<HTMLElement>('[data-products-count]')!;
+  const savedKey = 'sellio-product-view';
   const cell = (value: unknown) => { const td = document.createElement('td'); td.textContent = value === null || value === undefined || value === '' ? '—' : String(value); return td; };
   form.addEventListener('submit', async event => {
     event.preventDefault(); result.hidden = true; feedback.textContent = 'Pobieram produkty…';
@@ -26,8 +27,10 @@ import Icon from './Icon.astro';
       const response = await fetch(`${url}/v1/admin/wordpress/stores/${String(input.get('store_id')).trim()}/products?limit=100`, { headers: { 'X-Backend-Admin-Key': String(input.get('admin_key')).trim() } });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Nie udało się pobrać katalogu.');
       body.replaceChildren();
-      for (const product of data.products) { const row = document.createElement('tr'); row.append(cell(product.name), cell(product.sku), cell(product.price ? `${product.price} ${product.currency ?? ''}`.trim() : null), cell(product.stock_quantity), cell(product.status)); body.append(row); }
+      for (const product of data.products) { const row = document.createElement('tr'); const imageCell = document.createElement('td'); const image = product.images?.[0]; if (image?.url) { const thumbnail = document.createElement('img'); thumbnail.src = image.url; thumbnail.alt = image.alt || product.name || ''; thumbnail.loading = 'lazy'; thumbnail.className = 'product-thumbnail'; imageCell.append(thumbnail); } else imageCell.textContent = '—'; row.append(imageCell, cell(product.name), cell(product.sku), cell(product.price ? `${product.price} ${product.currency ?? ''}`.trim() : null), cell(product.stock_quantity), cell(product.status)); body.append(row); }
       count.textContent = `Wyświetlono ${data.products.length} z ${data.total} produktów.`; result.hidden = false; feedback.textContent = data.products.length ? '' : 'Katalog nie zawiera jeszcze produktów.';
+      localStorage.setItem(savedKey, JSON.stringify({ backend_url: input.get('backend_url'), admin_key: input.get('admin_key'), store_id: input.get('store_id') }));
     } catch (error) { feedback.textContent = error instanceof Error ? error.message : 'Wystąpił nieznany błąd.'; }
   });
+  try { const saved = JSON.parse(localStorage.getItem(savedKey) || 'null'); if (saved?.backend_url && saved?.admin_key && saved?.store_id) { for (const [name, value] of Object.entries(saved)) (form.elements.namedItem(name) as HTMLInputElement).value = String(value); form.requestSubmit(); } } catch {}
 </script>
