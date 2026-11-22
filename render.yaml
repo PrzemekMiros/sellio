@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: sellio-backend
+    runtime: node
+    buildCommand: npm ci
+    startCommand: npm run backend
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.23.4
+      - key: ADMIN_ORIGIN
+        value: https://allsellio.netlify.app
+      - key: BACKEND_DB
+        value: /opt/render/project/src/data/sellio.sqlite
+      - key: BACKEND_ADMIN_KEY
+        sync: false
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+    disk:
+      name: sellio-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1

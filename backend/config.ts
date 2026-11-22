@@ -6,7 +6,7 @@ export function config(env = process.env) {
   if (key.length !== 32) throw new Error('TOKEN_ENCRYPTION_KEY must contain 32 random bytes (base64)');
   const adminKey = required('BACKEND_ADMIN_KEY');
   if (adminKey.length < 32) throw new Error('BACKEND_ADMIN_KEY must have at least 32 characters');
-  const port = Number(env.BACKEND_PORT ?? 4322);
+  const port = Number(env.BACKEND_PORT ?? env.PORT ?? 4322);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid port');
   const redirectUri = env.ALLEGRO_REDIRECT_URI ?? `http://localhost:${port}/api/allegro/callback`;
   const adminOrigin = env.ADMIN_ORIGIN ?? 'http://localhost:4321';

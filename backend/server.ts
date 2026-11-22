@@ -78,4 +78,4 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
   }
   throw new ApiError(404, 'Not found');
 }
-createServer((req, res) => handler(req, res).catch(error => reply(res, error instanceof ApiError ? error.status : 500, { error: error instanceof Error ? error.message : 'Internal server error' }))).listen(appConfig.port, () => console.log(`Sellio backend listening on ${appConfig.port}`));
+createServer((req, res) => handler(req, res).catch(error => reply(res, error instanceof ApiError ? error.status : 500, { error: error instanceof Error ? error.message : 'Internal server error' }))).listen(appConfig.port, '0.0.0.0', () => console.log(`Sellio backend listening on ${appConfig.port}`));

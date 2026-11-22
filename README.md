@@ -16,7 +16,7 @@ $env:ADMIN_ORIGIN = 'http://localhost:4321'
 npm run backend
 ```
 
-`BACKEND_DB` jest opcjonalne (domyślnie `data/allegro-sandbox.sqlite`). W środowisku produkcyjnym ustaw HTTPS dla backendu oraz dokładny adres panelu w `ADMIN_ORIGIN`.
+`BACKEND_DB` jest opcjonalne (domyślnie `data/allegro-sandbox.sqlite`). W środowisku produkcyjnym ustaw HTTPS dla backendu oraz dokładny adres panelu w `ADMIN_ORIGIN`. Backend obsługuje także standardową zmienną `PORT` przekazywaną przez hosting.
 
 3. Uruchom panel (`npm run dev`) i wejdź w **Integracje**. Podaj adres backendu, klucz administratora oraz adres sklepu. Formularz wygeneruje `API Sellio`, `ID sklepu` i `Token API`.
 4. Skopiuj katalog `src/sellio-connector-wp-plugin` do `wp-content/plugins/`, aktywuj wtyczkę, a następnie w **WooCommerce → Sellio Connector** wklej trzy wartości. Zapisz i wybierz **Sprawdź połączenie**.
@@ -25,6 +25,10 @@ npm run backend
 Backend udostępnia dokładnie kontrakt wymagany przez wtyczkę: `GET /v1/connector/connection` oraz idempotentne `POST /v1/connector/events`. Zdarzenia WooCommerce są trwałe w lokalnej bazie SQLite.
 
 > Formularz administracyjny jest narzędziem konfiguracji dla zaufanego panelu. Przed publikacją nie wystawiaj `BACKEND_ADMIN_KEY` w otwartym internecie: umieść panel i backend za logowaniem albo zastąp nagłówek sesją użytkownika po stronie serwera.
+
+## Render
+
+Repozytorium zawiera `render.yaml`. W Render wybierz **New → Blueprint**, wskaż to repozytorium i utwórz usługę `sellio-backend`. Render odczyta polecenia budowania, endpoint kontroli zdrowia i trwały dysk SQLite z pliku. W formularzu wdrożenia podaj tylko wartości oznaczone jako sekretne: `BACKEND_ADMIN_KEY` i `TOKEN_ENCRYPTION_KEY`. Po wdrożeniu skopiuj publiczny adres usługi `https://…onrender.com` do pola „Adres backendu” w panelu Sellio.
 
 ## Uruchomienie
 
