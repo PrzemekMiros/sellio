@@ -1,0 +1,33 @@
+---
+import Icon from './Icon.astro';
+---
+<section class="wordpress-products" aria-labelledby="wordpress-products-title">
+  <div><span class="eyebrow">KATALOG WOO COMMERCE</span><h2 id="wordpress-products-title">Zaimportowane produkty</h2><p>Podaj dane administratora, aby odczytać katalog zapisany podczas importu.</p></div>
+  <form class="product-load-form" data-products-form>
+    <label>Adres backendu<input name="backend_url" type="url" value="https://allsellio.netlify.app" required /></label>
+    <label>Klucz administratora backendu<input name="admin_key" type="password" autocomplete="off" required /></label>
+    <label>ID sklepu<input name="store_id" placeholder="wp_…" required /></label>
+    <button class="button button-primary" type="submit"><Icon name="box" size={16} />Pokaż produkty</button>
+  </form>
+  <p class="integration-feedback" role="status" data-products-feedback></p>
+  <div class="products-result" data-products-result hidden><p data-products-count></p><div class="products-table-wrap"><table><thead><tr><th>Produkt</th><th>SKU</th><th>Cena</th><th>Stan</th><th>Status</th></tr></thead><tbody data-products-body></tbody></table></div></div>
+</section>
+<script>
+  const form = document.querySelector<HTMLFormElement>('[data-products-form]')!;
+  const feedback = document.querySelector<HTMLElement>('[data-products-feedback]')!;
+  const result = document.querySelector<HTMLElement>('[data-products-result]')!;
+  const body = document.querySelector<HTMLTableSectionElement>('[data-products-body]')!;
+  const count = document.querySelector<HTMLElement>('[data-products-count]')!;
+  const cell = (value: unknown) => { const td = document.createElement('td'); td.textContent = value === null || value === undefined || value === '' ? '—' : String(value); return td; };
+  form.addEventListener('submit', async event => {
+    event.preventDefault(); result.hidden = true; feedback.textContent = 'Pobieram produkty…';
+    const input = new FormData(form); const url = String(input.get('backend_url')).trim().replace(/\/$/, '');
+    try {
+      const response = await fetch(`${url}/v1/admin/wordpress/stores/${String(input.get('store_id')).trim()}/products?limit=100`, { headers: { 'X-Backend-Admin-Key': String(input.get('admin_key')).trim() } });
+      const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Nie udało się pobrać katalogu.');
+      body.replaceChildren();
+      for (const product of data.products) { const row = document.createElement('tr'); row.append(cell(product.name), cell(product.sku), cell(product.price ? `${product.price} ${product.currency ?? ''}`.trim() : null), cell(product.stock_quantity), cell(product.status)); body.append(row); }
+      count.textContent = `Wyświetlono ${data.products.length} z ${data.total} produktów.`; result.hidden = false; feedback.textContent = data.products.length ? '' : 'Katalog nie zawiera jeszcze produktów.';
+    } catch (error) { feedback.textContent = error instanceof Error ? error.message : 'Wystąpił nieznany błąd.'; }
+  });
+</script>

@@ -2,6 +2,7 @@
 import Icon from './Icon.astro';
 import WordpressIntegration from './WordpressIntegration.astro';
 import WordpressProductImport from './WordpressProductImport.astro';
+import WordpressProducts from './WordpressProducts.astro';
 import type { Module } from '../config/modules';
 interface Props { module: Module; }
 const { module } = Astro.props;
@@ -12,3 +13,4 @@ const integrations = [{name: 'Allegro', letter: 'a', type: 'Marketplace'}, {name
 {module.slug === 'integracje' && <section class="integration-section"><div class="section-heading"><h2>Planowane integracje</h2><span>4 obszary połączeń</span></div><div class="integration-grid">{integrations.map(item => <article class="integration-card"><span class="integration-logo">{item.letter || <Icon name={item.name === 'Przewoźnicy' ? 'truck' : 'file'} size={26} />}</span><h3>{item.name}</h3><p>{item.type}</p><span class="neutral-badge">W przygotowaniu</span></article>)}</div></section>}
 {module.slug === 'integracje' && <WordpressIntegration />}
 {module.slug === 'produkty/import-eksport' && <WordpressProductImport />}
+{module.slug === 'produkty/lista' && <WordpressProducts />}

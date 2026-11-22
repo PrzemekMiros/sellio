@@ -71,6 +71,15 @@ export default async (request: Request) => {
     let input: Record<string, unknown>; try { input = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
     return importCatalog(importMatch[1], input);
   }
+  const productsMatch = url.pathname.match(/^\/v1\/admin\/wordpress\/stores\/([\w-]+)\/products$/);
+  if (request.method === 'GET' && productsMatch) {
+    const current = await find(productsMatch[1]); if (!current) return json({ error: 'Store not found' }, 404);
+    const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') ?? 50) || 50));
+    const keys = (await blobs.list({ prefix: `product:${productsMatch[1]}:` })).blobs;
+    const products = await Promise.all(keys.slice(0, limit).map(entry => blobs.get(entry.key, { type: 'json' })));
+    products.sort((left: Record<string, unknown>, right: Record<string, unknown>) => String(left?.name ?? '').localeCompare(String(right?.name ?? ''), 'pl'));
+    return json({ products, total: keys.length, store: current.metadata.name });
+  }
   return json({ error: 'Not found' }, 404);
 };
 
