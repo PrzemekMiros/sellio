@@ -10,6 +10,26 @@ const same = (left: string, right: string) => { const a = Buffer.from(left), b =
 const validUrl = (value: unknown) => { if (typeof value !== 'string') throw new Error('Adres sklepu jest wymagany.'); const url = new URL(value); if (url.protocol !== 'https:') throw new Error('Adres sklepu musi używać HTTPS.'); return url.href.replace(/\/$/, ''); };
 const authorize = (request: Request) => { const key = process.env.BACKEND_ADMIN_KEY ?? ''; const supplied = request.headers.get('x-backend-admin-key') ?? ''; return key && supplied && same(hash(supplied), hash(key)); };
 const find = async (id: string) => (await blobs.get(`store:${id}`, { type: 'json' })) as Connection | null;
+const editableProductFields = ['name', 'sku', 'regular_price', 'sale_price', 'price', 'stock_quantity', 'status', 'description', 'short_description'] as const;
+
+function productUpdate(input: Record<string, unknown>) {
+  const update: Record<string, unknown> = {};
+  for (const field of editableProductFields) {
+    if (!(field in input)) continue;
+    const value = input[field];
+    if (field === 'stock_quantity') {
+      if (value !== null && (!Number.isInteger(value) || Number(value) < 0)) throw new Error('Stan magazynowy musi być liczbą całkowitą nie mniejszą od zera.');
+      update[field] = value;
+    } else if (field === 'status') {
+      if (!['publish', 'draft', 'private', 'pending'].includes(String(value))) throw new Error('Nieprawidłowy status produktu.');
+      update[field] = value;
+    } else {
+      if (value !== null && typeof value !== 'string') throw new Error('Nieprawidłowy format produktu.');
+      update[field] = value === '' ? null : value;
+    }
+  }
+  return update;
+}
 
 async function importCatalog(id: string, input: Record<string, unknown>) {
   const current = await find(id); if (!current) return json({ error: 'Store not found' }, 404);
@@ -79,6 +99,18 @@ export default async (request: Request) => {
     const products = await Promise.all(keys.slice(0, limit).map(entry => blobs.get(entry.key, { type: 'json' })));
     products.sort((left: Record<string, unknown>, right: Record<string, unknown>) => String(left?.name ?? '').localeCompare(String(right?.name ?? ''), 'pl'));
     return json({ products, total: keys.length, store: current.metadata.name });
+  }
+  const productMatch = url.pathname.match(/^\/v1\/admin\/wordpress\/stores\/([\w-]+)\/products\/([\w-]+)$/);
+  if (request.method === 'PATCH' && productMatch) {
+    const current = await find(productMatch[1]); if (!current) return json({ error: 'Store not found' }, 404);
+    let input: Record<string, unknown>; try { input = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
+    const existing = await blobs.get(`product:${productMatch[1]}:${productMatch[2]}`, { type: 'json' }) as Record<string, unknown> | null;
+    if (!existing) return json({ error: 'Product not found' }, 404);
+    try {
+      const product = { ...existing, ...productUpdate(input), modified_at: new Date().toISOString() };
+      await blobs.setJSON(`product:${productMatch[1]}:${productMatch[2]}`, product);
+      return json({ product });
+    } catch (error) { return json({ error: error instanceof Error ? error.message : 'Invalid request' }, 400); }
   }
   return json({ error: 'Not found' }, 404);
 };

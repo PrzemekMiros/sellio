@@ -10,15 +10,36 @@ import Icon from './Icon.astro';
     <button class="button button-primary" type="submit"><Icon name="box" size={16} />Odśwież produkty</button>
   </form>
   <p class="integration-feedback" role="status" data-products-feedback></p>
-  <div class="products-result" data-products-result hidden><p data-products-count></p><div class="products-table-wrap"><table><thead><tr><th>Zdjęcie</th><th>Produkt</th><th>SKU</th><th>Cena</th><th>Stan</th><th>Status</th></tr></thead><tbody data-products-body></tbody></table></div></div>
+  <div class="products-result" data-products-result hidden><p data-products-count></p><div class="products-table-wrap"><table><thead><tr><th>Zdjęcie</th><th>Produkt</th><th>SKU</th><th>Cena</th><th>Stan</th><th>Status</th><th><span class="sr-only">Akcje</span></th></tr></thead><tbody data-products-body></tbody></table></div></div>
 </section>
+<dialog class="product-editor" data-product-editor aria-labelledby="product-editor-title">
+  <form method="dialog" class="product-editor-header"><div><span class="eyebrow">EDYCJA PRODUKTU</span><h2 id="product-editor-title" data-editor-title>Produkt</h2></div><button class="icon-button" value="cancel" aria-label="Zamknij edycję">×</button></form>
+  <form class="product-editor-form" data-product-editor-form>
+    <input type="hidden" name="id" />
+    <label>Nazwa produktu<input name="name" required maxlength="255" /></label>
+    <label>SKU<input name="sku" maxlength="100" /></label>
+    <label>Cena regularna<input name="regular_price" type="text" inputmode="decimal" /></label>
+    <label>Cena promocyjna<input name="sale_price" type="text" inputmode="decimal" /></label>
+    <label>Stan magazynowy<input name="stock_quantity" type="number" min="0" step="1" /></label>
+    <label>Status<select name="status"><option value="publish">Opublikowany</option><option value="draft">Szkic</option><option value="private">Prywatny</option><option value="pending">Oczekujący</option></select></label>
+    <label class="product-editor-full">Krótki opis<textarea name="short_description" rows="3"></textarea></label>
+    <label class="product-editor-full">Opis<textarea name="description" rows="6"></textarea></label>
+    <p class="integration-feedback product-editor-full" role="status" data-editor-feedback></p>
+    <div class="product-editor-actions product-editor-full"><button class="secondary-button" type="button" data-editor-cancel>Anuluj</button><button class="button button-primary" type="submit">Zapisz zmiany</button></div>
+  </form>
+</dialog>
 <script>
   const form = document.querySelector<HTMLFormElement>('[data-products-form]')!;
   const feedback = document.querySelector<HTMLElement>('[data-products-feedback]')!;
   const result = document.querySelector<HTMLElement>('[data-products-result]')!;
   const body = document.querySelector<HTMLTableSectionElement>('[data-products-body]')!;
   const count = document.querySelector<HTMLElement>('[data-products-count]')!;
+  const editor = document.querySelector<HTMLDialogElement>('[data-product-editor]')!;
+  const editorForm = document.querySelector<HTMLFormElement>('[data-product-editor-form]')!;
+  const editorTitle = document.querySelector<HTMLElement>('[data-editor-title]')!;
+  const editorFeedback = document.querySelector<HTMLElement>('[data-editor-feedback]')!;
   const savedKey = 'sellio-product-view';
+  let products: Record<string, any>[] = [];
   const cell = (value: unknown) => { const td = document.createElement('td'); td.textContent = value === null || value === undefined || value === '' ? '—' : String(value); return td; };
   form.addEventListener('submit', async event => {
     event.preventDefault(); result.hidden = true; feedback.textContent = 'Pobieram produkty…';
@@ -26,11 +47,39 @@ import Icon from './Icon.astro';
     try {
       const response = await fetch(`${url}/v1/admin/wordpress/stores/${String(input.get('store_id')).trim()}/products?limit=100`, { headers: { 'X-Backend-Admin-Key': String(input.get('admin_key')).trim() } });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Nie udało się pobrać katalogu.');
-      body.replaceChildren();
-      for (const product of data.products) { const row = document.createElement('tr'); const imageCell = document.createElement('td'); const image = product.images?.[0]; if (image?.url) { const thumbnail = document.createElement('img'); thumbnail.src = image.url; thumbnail.alt = image.alt || product.name || ''; thumbnail.loading = 'lazy'; thumbnail.className = 'product-thumbnail'; imageCell.append(thumbnail); } else imageCell.textContent = '—'; row.append(imageCell, cell(product.name), cell(product.sku), cell(product.price ? `${product.price} ${product.currency ?? ''}`.trim() : null), cell(product.stock_quantity), cell(product.status)); body.append(row); }
+      products = data.products; renderProducts();
       count.textContent = `Wyświetlono ${data.products.length} z ${data.total} produktów.`; result.hidden = false; feedback.textContent = data.products.length ? '' : 'Katalog nie zawiera jeszcze produktów.';
       localStorage.setItem(savedKey, JSON.stringify({ backend_url: input.get('backend_url'), admin_key: input.get('admin_key'), store_id: input.get('store_id') }));
     } catch (error) { feedback.textContent = error instanceof Error ? error.message : 'Wystąpił nieznany błąd.'; }
+  });
+  function renderProducts() {
+    body.replaceChildren();
+    for (const product of products) {
+      const row = document.createElement('tr'); const imageCell = document.createElement('td'); const image = product.images?.[0];
+      if (image?.url) { const thumbnail = document.createElement('img'); thumbnail.src = image.url; thumbnail.alt = image.alt || product.name || ''; thumbnail.loading = 'lazy'; thumbnail.className = 'product-thumbnail'; imageCell.append(thumbnail); } else imageCell.textContent = '—';
+      const productCell = document.createElement('td'); const openButton = document.createElement('button'); openButton.type = 'button'; openButton.className = 'product-name-button'; openButton.textContent = product.name || 'Bez nazwy'; openButton.addEventListener('click', () => openEditor(product)); productCell.append(openButton);
+      const actionCell = document.createElement('td'); const editButton = document.createElement('button'); editButton.type = 'button'; editButton.className = 'table-action'; editButton.textContent = 'Edytuj'; editButton.addEventListener('click', () => openEditor(product)); actionCell.append(editButton);
+      row.append(imageCell, productCell, cell(product.sku), cell(product.price ? `${product.price} ${product.currency ?? ''}`.trim() : null), cell(product.stock_quantity), cell(product.status), actionCell); body.append(row);
+    }
+  }
+  function openEditor(product: Record<string, any>) {
+    editorForm.reset(); editorFeedback.textContent = ''; editorTitle.textContent = product.name || 'Produkt';
+    for (const [name, value] of Object.entries(product)) { const input = editorForm.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null; if (input) input.value = value ?? ''; }
+    editor.showModal();
+  }
+  document.querySelector<HTMLElement>('[data-editor-cancel]')!.addEventListener('click', () => editor.close());
+  editorForm.addEventListener('submit', async event => {
+    event.preventDefault(); editorFeedback.textContent = 'Zapisuję zmiany…';
+    const saved = JSON.parse(localStorage.getItem(savedKey) || 'null'); if (!saved?.backend_url || !saved?.admin_key || !saved?.store_id) { editorFeedback.textContent = 'Brakuje danych połączenia z katalogiem.'; return; }
+    const values = new FormData(editorForm); const id = String(values.get('id')); const payload: Record<string, unknown> = {};
+    for (const field of ['name', 'sku', 'regular_price', 'sale_price', 'stock_quantity', 'status', 'short_description', 'description']) payload[field] = values.get(field) || null;
+    payload.price = payload.sale_price || payload.regular_price;
+    if (payload.stock_quantity !== null) payload.stock_quantity = Number(payload.stock_quantity);
+    try {
+      const response = await fetch(`${String(saved.backend_url).replace(/\/$/, '')}/v1/admin/wordpress/stores/${encodeURIComponent(saved.store_id)}/products/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Backend-Admin-Key': String(saved.admin_key) }, body: JSON.stringify(payload) });
+      const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Nie udało się zapisać produktu.');
+      const index = products.findIndex(product => String(product.id) === id); if (index >= 0) products[index] = data.product; renderProducts(); editor.close(); feedback.textContent = 'Zmiany w produkcie zostały zapisane.';
+    } catch (error) { editorFeedback.textContent = error instanceof Error ? error.message : 'Nie udało się zapisać produktu.'; }
   });
   try { const saved = JSON.parse(localStorage.getItem(savedKey) || 'null'); if (saved?.backend_url && saved?.admin_key && saved?.store_id) { for (const [name, value] of Object.entries(saved)) (form.elements.namedItem(name) as HTMLInputElement).value = String(value); form.requestSubmit(); } } catch {}
 </script>

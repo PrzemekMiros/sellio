@@ -118,6 +118,7 @@ button:focus-visible, a:focus-visible { outline-color: #b9470b; }
 :root[data-theme="dark"] .products-table-wrap :is(th, td) { border-color: #363a43; color: #edf0f4; }
 :root[data-theme="dark"] .products-table-wrap tr:hover td { background: #202229; }
 :root[data-theme="dark"] .product-thumbnail { border-color: #555b64; background: #121319; }
+:root[data-theme="dark"] .product-editor { border-color: #454a54; background: #202229; color: #edf0f4; }
 :root[data-theme="dark"] .credentials-box { background: #211c18; border-color: #6f4a2b; }
 .sidebar :is(a, button, summary):focus-visible { outline-color: #ffad7e; }
 
