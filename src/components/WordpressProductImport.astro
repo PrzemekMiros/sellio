@@ -13,6 +13,17 @@ import Icon from './Icon.astro';
   </form>
   <p class="integration-feedback" role="status" data-import-feedback></p>
 </section>
+<section class="inventory-sync" aria-labelledby="inventory-sync-title">
+  <div><span class="eyebrow">ŹRÓDŁO STANÓW I CEN</span><h2 id="inventory-sync-title">Synchronizacja WooCommerce → Allegro</h2><p>WooCommerce jest głównym magazynem. Sellio będzie przekazywać stany i ceny produktów z tego sklepu do powiązanych ofert Allegro.</p></div>
+  <form class="integration-form" data-sync-form>
+    <label class="full-width">Główny magazyn<select name="inventory_source"><option value="woocommerce">WooCommerce — źródło stanów i cen</option></select></label>
+    <label class="sync-toggle"><input name="sync_stock" type="checkbox" checked /><span><strong>Synchronizuj stany magazynowe</strong><small>Sprzedaż na Allegro zmniejszy stan w WooCommerce.</small></span></label>
+    <label class="sync-toggle"><input name="sync_prices" type="checkbox" checked /><span><strong>Synchronizuj ceny</strong><small>Ceny z WooCommerce będą aktualizować oferty Allegro.</small></span></label>
+    <label class="sync-toggle full-width"><input name="protect_woocommerce" type="checkbox" checked /><span><strong>Chroń dane WooCommerce</strong><small>Ręczne zmiany ceny lub stanu w Allegro zostaną oznaczone jako konflikt.</small></span></label>
+    <button class="button button-primary" type="submit"><Icon name="settings" size={16} />Zapisz zasady synchronizacji</button>
+  </form>
+  <p class="integration-feedback" role="status" data-sync-feedback></p>
+</section>
 <script>
   const importForm = document.querySelector<HTMLFormElement>('[data-import-form]')!;
   const importFeedback = document.querySelector<HTMLElement>('[data-import-feedback]')!;
@@ -25,5 +36,16 @@ import Icon from './Icon.astro';
       localStorage.setItem('sellio-product-view', JSON.stringify({ backend_url: input.get('backend_url'), admin_key: input.get('admin_key'), store_id: input.get('store_id') }));
       importFeedback.textContent = `Zaimportowano ${data.imported} produktów w ${data.pages} partiach. Lista produktów będzie od teraz ładować się automatycznie.`;
     } catch (error) { importFeedback.textContent = error instanceof Error ? error.message : 'Wystąpił nieznany błąd.'; }
+  });
+  const syncForm = document.querySelector<HTMLFormElement>('[data-sync-form]')!;
+  const syncFeedback = document.querySelector<HTMLElement>('[data-sync-feedback]')!;
+  const syncKey = 'sellio-inventory-sync';
+  try {
+    const saved = JSON.parse(localStorage.getItem(syncKey) || 'null');
+    if (saved) for (const [name, value] of Object.entries(saved)) { const input = syncForm.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null; if (input) input instanceof HTMLInputElement && input.type === 'checkbox' ? input.checked = Boolean(value) : input.value = String(value); }
+  } catch {}
+  syncForm.addEventListener('submit', event => {
+    event.preventDefault(); const values = new FormData(syncForm); const settings = { inventory_source: values.get('inventory_source'), sync_stock: values.has('sync_stock'), sync_prices: values.has('sync_prices'), protect_woocommerce: values.has('protect_woocommerce') };
+    localStorage.setItem(syncKey, JSON.stringify(settings)); syncFeedback.textContent = 'Zasady zapisane. Synchronizacja zostanie uruchomiona po połączeniu konta Allegro.';
   });
 </script>

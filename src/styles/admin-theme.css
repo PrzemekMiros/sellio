@@ -108,10 +108,13 @@ button:focus-visible, a:focus-visible { outline-color: #b9470b; }
 :root[data-theme="dark"] .topbar { border-bottom: 1px solid #34353f; }
 :root[data-theme="dark"] :is(.metric-card, .orders-panel, .getting-started, .module-placeholder, .integration-card, .welcome-banner) { border: 1px solid #383943; }
 :root[data-theme="dark"] :is(.wordpress-setup, .wordpress-import, .wordpress-products) { background: var(--surface); border-color: #383943; color: #f5f5f7; box-shadow: 0 3px 9px #00000040; }
+:root[data-theme="dark"] .inventory-sync { background: var(--surface); border-color: #383943; color: #f5f5f7; box-shadow: 0 3px 9px #00000040; }
 :root[data-theme="dark"] :is(.wordpress-setup h2, .wordpress-import h2, .wordpress-products h2) { color: #f5f5f7; }
 :root[data-theme="dark"] :is(.setup-intro, .catalog-details, .catalog-details p, .wordpress-import > div > p, .wordpress-products > div > p, .integration-feedback, .credentials-box p) { color: #c5c7d0; }
+:root[data-theme="dark"] .inventory-sync > div > p, :root[data-theme="dark"] .sync-toggle small { color: #c5c7d0; }
 :root[data-theme="dark"] :is(.integration-form label, .product-load-form label) { color: #e7e9ee; }
 :root[data-theme="dark"] :is(.integration-form input, .product-load-form input) { background: #121319; border-color: #4a5058; color: #f5f5f7; }
+:root[data-theme="dark"] :is(.integration-form select, .sync-toggle) { background: #121319; border-color: #4a5058; color: #f5f5f7; }
 :root[data-theme="dark"] :is(.integration-form input:focus, .product-load-form input:focus) { border-color: #ff934f; box-shadow: 0 0 0 2px #ff681f33; outline: 0; }
 :root[data-theme="dark"] .products-table-wrap { border-color: #454a54; }
 :root[data-theme="dark"] .products-table-wrap th { background: #14151b; color: #cdd3dc; }
