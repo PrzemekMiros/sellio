@@ -9,7 +9,7 @@ interface Props { module: Module; }
 const { module } = Astro.props;
 const completedModules = ['integracje', 'produkty/import-eksport'];
 ---
-{module.slug !== 'integracje' && <div class="page-heading"><div><p class="eyebrow">TWOJE CENTRUM SPRZEDAŻY</p><h1>{module.name}</h1><p>{module.description}</p></div>{!completedModules.includes(module.slug) && <span class="neutral-badge"><Icon name="clock" size={14} />W przygotowaniu</span>}</div>}
+{!['integracje', 'produkty/lista'].includes(module.slug) && <div class="page-heading"><div><p class="eyebrow">TWOJE CENTRUM SPRZEDAŻY</p><h1>{module.name}</h1><p>{module.description}</p></div>{!completedModules.includes(module.slug) && <span class="neutral-badge"><Icon name="clock" size={14} />W przygotowaniu</span>}</div>}
 {!completedModules.includes(module.slug) && <section class="module-placeholder" aria-label={`${module.name} — w przygotowaniu`}><div class="placeholder-art"><div class="art-orbit"></div><span class="large-icon"><Icon name={module.icon} size={34} /></span><span class="art-mini"><Icon name="clock" size={18} /></span></div><span class="eyebrow">JUŻ WKRÓTCE W SELLIO</span><h2>Miejsce na nowe możliwości</h2><p>Przygotowujemy moduł „{module.name}”.<br />Jego funkcje będą dostępne w kolejnej wersji aplikacji.</p><span class="neutral-badge"><Icon name="clock" size={14} />W przygotowaniu</span></section>}
 {module.slug === 'integracje' && <IntegrationOverview />}
 {module.slug === 'integracje' && <WordpressIntegration />}

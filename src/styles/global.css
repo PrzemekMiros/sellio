@@ -875,6 +875,7 @@ h1 {
 .wordpress-setup[open] { position: relative; width: min(860px, calc(100vw - 40px)); max-height: calc(100vh - 40px); margin: auto; overflow: auto; }.wordpress-setup::backdrop { background: #111820a8; backdrop-filter: blur(3px); }.integration-dialog-close { position: absolute; top: 14px; right: 16px; display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid var(--border); border-radius: 50%; color: var(--text); background: var(--surface); font-size: 24px; line-height: 1; cursor: pointer; }.integration-dialog-close:hover { border-color: var(--accent); color: var(--accent); }
 .inventory-sync { margin-top: 20px; padding: 28px; background: white; border: 1px solid var(--border); border-radius: 10px; }.inventory-sync h2 { margin: 3px 0 7px; font-size: 20px; }.inventory-sync > div > p { max-width: 760px; margin: 0 0 20px; color: var(--muted); line-height: 1.55; }.integration-form select { padding: 10px 11px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--surface); font: inherit; }.sync-toggle { display: flex !important; grid-template-columns: 20px 1fr; align-items: start; gap: 10px !important; padding: 13px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); cursor: pointer; }.sync-toggle input { width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--primary); }.sync-toggle strong, .sync-toggle small { display: block; }.sync-toggle small { margin-top: 4px; color: var(--muted); font-size: .75rem; font-weight: 400; line-height: 1.4; }
 .wordpress-products { margin-top: 20px; padding: 28px; background: white; border: 1px solid var(--border); border-radius: 10px; }.wordpress-products h2 { margin: 3px 0 7px; font-size: 20px; }.wordpress-products > div > p { margin: 0 0 20px; color: var(--muted); }.product-load-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }.product-load-form label { display: grid; gap: 7px; color: var(--text); font-size: .875rem; font-weight: 600; }.product-load-form input { padding: 10px 11px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--surface); font: inherit; }.product-load-form button { justify-self: start; grid-column: 1 / -1; border: 0; display: inline-flex; align-items: center; gap: 7px; }.products-result { margin-top: 18px; }.products-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 7px; }.products-table-wrap table { width: 100%; border-collapse: collapse; font-size: .875rem; }.products-table-wrap th, .products-table-wrap td { padding: 12px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }.products-table-wrap th { color: var(--muted); font-weight: 600; background: #fafbfc; }.products-table-wrap tr:last-child td { border-bottom: 0; }
+.products-toolbar { display: flex; align-items: center; gap: 16px; }.products-toolbar .button { border: 0; display: inline-flex; align-items: center; gap: 7px; }.products-integration-link { color: var(--accent); font-size: .875rem; font-weight: 650; text-decoration: none; }.products-integration-link:hover { text-decoration: underline; }
 .product-thumbnail { display: block; width: 48px; height: 48px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
 .product-name-button, .table-action { padding: 0; border: 0; color: var(--text); background: transparent; font: inherit; font-weight: 650; cursor: pointer; text-align: left; }.product-name-button:hover, .table-action:hover { color: var(--primary); text-decoration: underline; }.table-action { color: var(--primary); font-weight: 600; }.product-editor { width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0; border: 1px solid var(--border); border-radius: 12px; color: var(--text); background: var(--surface); box-shadow: 0 24px 70px #1b1d2680; }.product-editor::backdrop { background: #18203280; }.product-editor-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 24px 28px 18px; border-bottom: 1px solid var(--border); }.product-editor-header h2 { margin: 4px 0 0; font-size: 1.25rem; }.product-editor-header .icon-button { font-size: 1.6rem; line-height: 1; }.product-editor-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 24px 28px 28px; }.product-editor-form label { display: grid; gap: 7px; font-size: .875rem; font-weight: 600; }.product-editor-form :is(input, select, textarea) { width: 100%; box-sizing: border-box; padding: 10px 11px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--surface); font: inherit; }.product-editor-form textarea { resize: vertical; }.product-editor-full { grid-column: 1 / -1; }.product-editor-actions { display: flex; justify-content: flex-end; gap: 10px; }.product-editor-actions button { border: 0; }.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 @media (max-width: 640px) { .product-load-form, .product-editor-form { grid-template-columns: 1fr; }.product-editor { width: calc(100vw - 20px); }.product-editor-header, .product-editor-form { padding-left: 18px; padding-right: 18px; }.product-editor-full { grid-column: auto; } }
@@ -1217,3 +1218,33 @@ main:has(.wordpress-setup) .module-placeholder { display: none; }
 
 /* Shared heading weight. */
 h1, h2, h3, h4, h5, h6 { font-weight: 600; }
+
+/* Consistent primary actions in the seller panel. */
+:is(.integration-form, .wordpress-import, .products-toolbar, .product-editor-actions) .button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 17px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: #211109;
+  background: var(--accent);
+  box-shadow: none;
+  font: inherit;
+  font-size: .875rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease, transform .16s ease;
+}
+:is(.integration-form, .wordpress-import, .products-toolbar, .product-editor-actions) .button:hover {
+  border-color: #ff8848;
+  background: #ff8848;
+  transform: translateY(-1px);
+}
+:is(.integration-form, .wordpress-import, .products-toolbar, .product-editor-actions) .button:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  outline-offset: 3px;
+}

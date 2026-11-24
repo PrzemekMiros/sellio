@@ -33,6 +33,7 @@ import Icon from './Icon.astro';
     try {
       const response = await fetch(`${backend()}/v1/admin/wordpress/stores`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Backend-Admin-Key': value('admin_key') }, body: JSON.stringify({ name: value('name'), site_url: value('site_url'), catalog_url: value('site_url'), catalog_token: value('catalog_token') }) });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Nie udało się utworzyć połączenia.');
+      localStorage.setItem('sellio-product-view', JSON.stringify({ backend_url: backend(), admin_key: value('admin_key'), store_id: data.store_id }));
       document.querySelector<HTMLElement>('[data-api-url]')!.textContent = backend();
       document.querySelector<HTMLElement>('[data-store-id]')!.textContent = data.store_id;
       document.querySelector<HTMLElement>('[data-api-token]')!.textContent = data.api_token;
