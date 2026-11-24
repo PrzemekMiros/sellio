@@ -17,9 +17,12 @@ import Icon from './Icon.astro';
   <h2 id="integration-settings-title">Ustawienia integracji</h2>
   <div class="integration-table-wrap"><table><thead><tr><th>Typ</th><th>Nazwa</th><th>Pobierane dane</th><th>Wysyłane dane</th><th><span class="sr-only">Akcje</span></th></tr></thead><tbody>
     <tr><td><span class="integration-type allegro-type"><Icon name="tag" size={14} />Allegro</span></td><td><strong>Połącz konto Allegro</strong></td><td><span class="sync-pill muted">—</span></td><td><span class="sync-pill muted">—</span></td><td><span class="integration-status-label">W przygotowaniu</span></td></tr>
-    <tr><td><span class="integration-type woo-type"><Icon name="store" size={14} />WooCommerce</span></td><td><strong>Sklep WordPress</strong></td><td><span class="sync-pill">Produkty</span><span class="sync-pill">Ceny</span><span class="sync-pill">Stany</span></td><td><span class="sync-pill">Zamówienia</span><span class="sync-pill">Statusy</span></td><td><a class="integration-configure" href="#wordpress-setup"><Icon name="settings" size={14} />Konfiguruj</a></td></tr>
+    <tr><td><span class="integration-type woo-type"><Icon name="store" size={14} />WooCommerce</span></td><td><strong>Sklep WordPress</strong></td><td><span class="sync-pill">Produkty</span><span class="sync-pill">Ceny</span><span class="sync-pill">Stany</span></td><td><span class="sync-pill">Zamówienia</span><span class="sync-pill">Statusy</span></td><td><a class="integration-configure" href="#wordpress-setup" data-open-wordpress-setup><Icon name="settings" size={14} />Konfiguruj</a></td></tr>
   </tbody></table></div>
 </section>
 <script>
-  document.querySelector<HTMLElement>('[data-scroll-to-woo]')?.addEventListener('click', () => document.querySelector('#wordpress-setup')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  const setup = document.querySelector<HTMLElement>('#wordpress-setup');
+  const showSetup = () => { if (!setup) return; setup.hidden = false; setup.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  document.querySelector<HTMLElement>('[data-scroll-to-woo]')?.addEventListener('click', showSetup);
+  document.querySelector<HTMLElement>('[data-open-wordpress-setup]')?.addEventListener('click', event => { event.preventDefault(); showSetup(); });
 </script>

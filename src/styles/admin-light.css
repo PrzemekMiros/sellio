@@ -48,3 +48,13 @@
 :root[data-theme="light"] .art-ring { border-color: #d1a180; }
 :root[data-theme="light"] .art-spark { color: #c9926c; }
 @media (max-width: 620px) { .topbar-right .prototype-badge { display: none; } .topbar-right { gap: 10px; } }
+
+:root[data-theme="light"] .integration-overview { border-color: #d8dde4; background: #f8f9fb; box-shadow: 0 3px 10px #202a3912; }
+:root[data-theme="light"] .integration-map { background: #fff; }
+:root[data-theme="light"] .integration-actions { border-color: #e0e4e9; }
+:root[data-theme="light"] .integration-settings { border-color: #d3d9e0; background: #fff; }
+:root[data-theme="light"] .integration-table-wrap table { color: #20252d; }
+:root[data-theme="light"] .integration-table-wrap th { color: #586371; border-color: #dce1e7; background: #f8f9fb; }
+:root[data-theme="light"] .integration-table-wrap td { border-color: #e1e5e9; }
+:root[data-theme="light"] .integration-status-label { color: #697584; }
+:root[data-theme="light"] .integration-configure { border-color: #b9c1ca; color: #3f4a57; }
