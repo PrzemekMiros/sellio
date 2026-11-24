@@ -8,7 +8,7 @@ import Icon from './Icon.astro';
     <label>Adres backendu<input name="backend_url" type="url" value="https://allsellio.netlify.app" required /></label>
     <label>Nazwa sklepu<input name="name" placeholder="Mój sklep WooCommerce" required /></label>
     <label>Adres sklepu WordPress<input name="site_url" type="url" placeholder="https://sklep.example.pl" required /></label>
-    <details class="catalog-details"><summary>Opcjonalnie: dostęp do katalogu produktów</summary><p>Najpierw wygeneruj token katalogu we wtyczce WordPress, a potem wklej go tutaj. Dzięki temu Sellio może pobrać produkty i warianty.</p><label>Token katalogu<input name="catalog_token" type="password" autocomplete="off" /></label></details>
+    <div class="catalog-details"><strong>Dostęp do katalogu produktów</strong><p>Wygeneruj token katalogu we wtyczce WordPress, a następnie wklej go tutaj. Dzięki temu Sellio może pobrać produkty i warianty.</p><label>Token katalogu<input name="catalog_token" type="password" autocomplete="off" required /></label></div>
     <button class="button button-primary" type="submit"><Icon name="plug" size={16} />Utwórz połączenie</button>
   </form>
   <div class="credentials-box" data-credentials hidden>
@@ -44,11 +44,9 @@ import Icon from './Icon.astro';
       credentials.hidden = false; state.textContent = 'Oczekuje na weryfikację w WordPress'; state.classList.add('pending');
       window.dispatchEvent(new CustomEvent('sellio:wordpress-connected', { detail: { backendUrl: backend(), storeId: data.store_id, name: value('name'), siteUrl: value('site_url') } }));
       const catalogToken = value('catalog_token');
-      if (catalogToken) {
-        const catalogResponse = await fetch(`${backend()}/v1/admin/wordpress/stores/${data.store_id}/catalog/check`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authorization() }, body: JSON.stringify({ catalog_url: value('site_url'), catalog_token: catalogToken }) });
-        const catalog = await catalogResponse.json(); if (!catalogResponse.ok) throw new Error(catalog.error || 'Nie udało się zweryfikować katalogu WordPress.');
-      }
-      feedback.textContent = catalogToken ? 'Dane dostępowe utworzone, a katalog WordPress został zweryfikowany. Token API jest widoczny tylko teraz — skopiuj go przed zamknięciem strony.' : 'Dane dostępowe utworzone. Token API jest widoczny tylko teraz — skopiuj go przed zamknięciem strony.';
+      const catalogResponse = await fetch(`${backend()}/v1/admin/wordpress/stores/${data.store_id}/catalog/check`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authorization() }, body: JSON.stringify({ catalog_url: value('site_url'), catalog_token: catalogToken }) });
+      const catalog = await catalogResponse.json(); if (!catalogResponse.ok) throw new Error(catalog.error || 'Nie udało się zweryfikować katalogu WordPress.');
+      feedback.textContent = 'Dane dostępowe utworzone, a katalog WordPress został zweryfikowany. Token API jest widoczny tylko teraz — skopiuj go przed zamknięciem strony.';
     } catch (error) { feedback.textContent = error instanceof Error ? error.message : 'Wystąpił nieznany błąd.'; state.textContent = 'Błąd konfiguracji'; state.classList.add('error'); }
   });
   document.querySelector<HTMLButtonElement>('[data-copy]')!.addEventListener('click', async () => {
