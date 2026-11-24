@@ -195,6 +195,7 @@ button {
   font-size: 0.875rem;
   font-weight: 600;
 }
+.avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }.topbar-user-name { max-width: 170px; overflow: hidden; color: var(--text); font-size: .8125rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .version {
   margin-left: auto;
   font-size: 0.75rem;
@@ -1044,6 +1045,7 @@ main:has(.wordpress-setup) .module-placeholder { display: none; }
   }
 }
 @media (max-width: 620px) {
+  .topbar-user-name { display: none; }
   main {
     padding: 25px 18px;
   }
