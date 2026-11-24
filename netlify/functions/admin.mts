@@ -95,7 +95,7 @@ export default async (request: Request) => {
       if (!catalogResponse.ok) throw new Error(`Katalog WordPress zwrócił HTTP ${catalogResponse.status}. Sprawdź token katalogu.`);
       if (!catalog || catalog.contract_version !== '1') throw new Error('Katalog WordPress zwrócił nieprawidłowy format odpowiedzi.');
       const id = `wp_${randomBytes(9).toString('hex')}`, token = randomBytes(32).toString('base64url'), now = new Date().toISOString();
-      await blobs.setJSON(`store:${id}`, { secret_hash: hash(token), owner_id: user.id, metadata: { name: input.name.trim().slice(0, 100), site_url: siteUrl, catalog_status: 'connected', catalog_checked_at: now, catalog }, created_at: now, updated_at: now });
+      await blobs.setJSON(`store:${id}`, { secret_hash: hash(token), owner_id: user.id, metadata: { name: input.name.trim().slice(0, 100), site_url: siteUrl, catalog_token: input.catalog_token, catalog_status: 'connected', catalog_checked_at: now, catalog }, created_at: now, updated_at: now });
       return json({ store_id: id, api_token: token }, 201);
     } catch (error) { return json({ error: error instanceof Error ? error.message : 'Invalid request' }, 400); }
   }
@@ -142,6 +142,21 @@ export default async (request: Request) => {
     }
     const orders = [...latest.values()].sort((left, right) => String(right.modified_at ?? right.created_at ?? '').localeCompare(String(left.modified_at ?? left.created_at ?? '')));
     return json({ orders, total: orders.length, store: current.metadata.name });
+  }
+  const orderStatusMatch = url.pathname.match(/^\/v1\/admin\/wordpress\/stores\/([\w-]+)\/orders\/(\d+)\/status$/);
+  if (request.method === 'POST' && orderStatusMatch) {
+    const current = await findOwned(orderStatusMatch[1], user.id); if (!current) return json({ error: 'Store not found' }, 404);
+    let input: Record<string, unknown>; try { input = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
+    const status = String(input.status ?? '').replace(/^wc-/, '');
+    if (!['pending', 'on-hold', 'processing', 'completed', 'cancelled', 'refunded', 'failed'].includes(status)) return json({ error: 'Nieprawidłowy status zamówienia.' }, 400);
+    const siteUrl = String(current.metadata.site_url ?? ''); const catalogToken = String(current.metadata.catalog_token ?? '');
+    if (!siteUrl || !catalogToken) return json({ error: 'Brakuje bezpiecznego dostępu do katalogu. Skonfiguruj połączenie WooCommerce ponownie.' }, 409);
+    try {
+      const response = await fetch(`${siteUrl}/wp-json/sellio/v1/orders/${orderStatusMatch[2]}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Sellio-Catalog-Token': catalogToken }, body: JSON.stringify({ status }), signal: AbortSignal.timeout(15_000) });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.message || data?.error || `WooCommerce zwrócił HTTP ${response.status}.`);
+      return json({ order: data });
+    } catch (error) { return json({ error: error instanceof Error ? error.message : 'Nie udało się zmienić statusu zamówienia.' }, 502); }
   }
   const productMatch = url.pathname.match(/^\/v1\/admin\/wordpress\/stores\/([\w-]+)\/products\/([\w-]+)$/);
   if (request.method === 'PATCH' && productMatch) {

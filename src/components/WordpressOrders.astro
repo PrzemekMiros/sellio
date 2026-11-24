@@ -6,7 +6,7 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
   <div><span class="eyebrow">ZAMÓWIENIA WOO COMMERCE</span><h2 id="wordpress-orders-title">Lista zamówień</h2><p>Nowe zamówienia są przekazywane automatycznie przez Sellio Connector.</p></div>
   <div class="products-toolbar"><button class="button button-primary" type="button" data-orders-refresh>Odśwież zamówienia</button><a href="/admin/integracje" class="products-integration-link">Ustawienia integracji</a></div>
   <p class="integration-feedback" role="status" data-orders-feedback></p>
-  <div class="orders-result" data-orders-result hidden><p data-orders-count></p><div class="orders-table-wrap"><table><thead><tr><th>Numer</th><th>Data</th><th>Klient</th><th>Kwota</th><th>Płatność</th><th>Status</th><th>Pozycje</th></tr></thead><tbody data-orders-body></tbody></table></div></div>
+  <div class="orders-result" data-orders-result hidden><p data-orders-count></p><div class="orders-table-wrap"><table><thead><tr><th>Numer</th><th>Data</th><th>Klient</th><th>Kwota</th><th>Płatność</th><th>Status</th><th>Pozycje</th><th>Akcja</th></tr></thead><tbody data-orders-body></tbody></table></div></div>
 </section>
 <script>
   const section = document.querySelector<HTMLElement>('.wordpress-orders')!;
@@ -30,12 +30,24 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
     const stores = await response.json(); const store = response.ok ? stores[0] : null;
     return store?.external_id && store.credentials?.backend_url ? { storeId: store.external_id, backendUrl: store.credentials.backend_url } : null;
   }
-  function render(orders: Record<string, any>[]) {
+  const statuses = [['pending', 'Oczekuje'], ['on-hold', 'Wstrzymane'], ['processing', 'W realizacji'], ['completed', 'Zrealizowane'], ['cancelled', 'Anulowane'], ['refunded', 'Zwrócone'], ['failed', 'Nieudane']];
+  async function updateStatus(config: { backendUrl: string; storeId: string }, order: Record<string, any>, status: string, button: HTMLButtonElement) {
+    button.disabled = true; feedback.textContent = 'Zapisuję status w WooCommerce…';
+    try {
+      const response = await fetch(`${String(config.backendUrl).replace(/\/$/, '')}/v1/admin/wordpress/stores/${encodeURIComponent(config.storeId)}/orders/${encodeURIComponent(order.id)}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ status }) });
+      const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Nie udało się zapisać statusu.');
+      order.status = data.order?.status || status; feedback.textContent = 'Status zamówienia został zmieniony w WooCommerce.';
+    } catch (error) { feedback.textContent = error instanceof Error ? error.message : 'Nie udało się zapisać statusu.'; } finally { button.disabled = false; }
+  }
+  function render(orders: Record<string, any>[], config: { backendUrl: string; storeId: string }) {
     body.replaceChildren();
     for (const order of orders) {
       const customer = [order.billing?.first_name, order.billing?.last_name].filter(Boolean).join(' ') || order.email;
       const items = Array.isArray(order.items) ? order.items.reduce((sum: number, item: Record<string, any>) => sum + Number(item.quantity || 0), 0) : 0;
-      const row = document.createElement('tr'); row.append(cell(`#${order.number || order.id}`), cell(displayDate(order.created_at)), cell(customer), cell(order.total ? `${order.total} ${order.currency || ''}`.trim() : null), cell(order.payment_method), cell(order.status), cell(items)); body.append(row);
+      const statusCell = document.createElement('td'); const select = document.createElement('select'); select.className = 'order-status-select';
+      for (const [value, label] of statuses) { const option = document.createElement('option'); option.value = value; option.textContent = label; option.selected = value === order.status; select.append(option); }
+      statusCell.append(select); const actionCell = document.createElement('td'); const save = document.createElement('button'); save.type = 'button'; save.className = 'table-action'; save.textContent = 'Zapisz'; save.addEventListener('click', () => updateStatus(config, order, select.value, save)); actionCell.append(save);
+      const row = document.createElement('tr'); row.append(cell(`#${order.number || order.id}`), cell(displayDate(order.created_at)), cell(customer), cell(order.total ? `${order.total} ${order.currency || ''}`.trim() : null), cell(order.payment_method), statusCell, cell(items), actionCell); body.append(row);
     }
   }
   async function load() {
@@ -44,7 +56,7 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
       const config = await connection(); if (!config) throw new Error('Najpierw skonfiguruj połączenie WooCommerce w zakładce Integracje.');
       const response = await fetch(`${String(config.backendUrl).replace(/\/$/, '')}/v1/admin/wordpress/stores/${encodeURIComponent(config.storeId)}/orders`, { headers: authHeaders() });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || `Nie udało się pobrać zamówień (HTTP ${response.status}).`);
-      render(data.orders); count.textContent = `Wyświetlono ${data.orders.length} z ${data.total} zamówień.`; result.hidden = false;
+      render(data.orders, config); count.textContent = `Wyświetlono ${data.orders.length} z ${data.total} zamówień.`; result.hidden = false;
       feedback.textContent = data.orders.length ? '' : 'Brak odebranych zamówień. W WordPress: WooCommerce → Sellio Connector wybierz „Wyślij ostatnie 30 dni”.';
     } catch (error) { feedback.textContent = error instanceof Error ? error.message : 'Nie udało się pobrać zamówień.'; }
   }
