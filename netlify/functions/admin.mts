@@ -127,6 +127,22 @@ export default async (request: Request) => {
     products.sort((left: Record<string, unknown>, right: Record<string, unknown>) => String(left?.name ?? '').localeCompare(String(right?.name ?? ''), 'pl'));
     return json({ products, total: keys.length, store: current.metadata.name });
   }
+  const ordersMatch = url.pathname.match(/^\/v1\/admin\/wordpress\/stores\/([\w-]+)\/orders$/);
+  if (request.method === 'GET' && ordersMatch) {
+    const current = await findOwned(ordersMatch[1], user.id); if (!current) return json({ error: 'Store not found' }, 404);
+    const eventKeys = (await blobs.list({ prefix: 'event:' })).blobs;
+    const events = await Promise.all(eventKeys.map(entry => blobs.get(entry.key, { type: 'json' }) as Promise<Record<string, any> | null>));
+    const latest = new Map<string, Record<string, any>>();
+    for (const event of events) {
+      if (!event) continue;
+      const order = event?.store_id === ordersMatch[1] ? event.payload?.data : null;
+      if (!order?.id) continue;
+      const existing = latest.get(String(order.id));
+      if (!existing || String(event.received_at ?? '') > String(existing.received_at ?? '')) latest.set(String(order.id), { ...order, received_at: event.received_at, event_type: event.event_type });
+    }
+    const orders = [...latest.values()].sort((left, right) => String(right.modified_at ?? right.created_at ?? '').localeCompare(String(left.modified_at ?? left.created_at ?? '')));
+    return json({ orders, total: orders.length, store: current.metadata.name });
+  }
   const productMatch = url.pathname.match(/^\/v1\/admin\/wordpress\/stores\/([\w-]+)\/products\/([\w-]+)$/);
   if (request.method === 'PATCH' && productMatch) {
     const current = await findOwned(productMatch[1], user.id); if (!current) return json({ error: 'Store not found' }, 404);

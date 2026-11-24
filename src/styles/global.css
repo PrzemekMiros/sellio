@@ -882,6 +882,8 @@ h1 {
 /* The product list is live; suppress the shared placeholder reserved for unfinished modules. */
 main:has(.wordpress-products) .module-placeholder,
 main:has(.wordpress-products) .page-heading .neutral-badge { display: none; }
+main:has(.wordpress-orders) .module-placeholder,
+main:has(.wordpress-orders) .page-heading .neutral-badge { display: none; }
 main:has(.wordpress-setup) .module-placeholder { display: none; }
 .mobile-only {
   display: none;
@@ -1248,3 +1250,4 @@ h1, h2, h3, h4, h5, h6 { font-weight: 600; }
   outline: 3px solid color-mix(in srgb, var(--accent) 42%, transparent);
   outline-offset: 3px;
 }
+.wordpress-orders { margin-top: 20px; padding: 28px; background: white; border: 1px solid var(--border); border-radius: 10px; }.wordpress-orders h2 { margin: 3px 0 7px; font-size: 20px; }.wordpress-orders > div > p { margin: 0 0 20px; color: var(--muted); }.orders-result { margin-top: 18px; }.orders-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 7px; }.orders-table-wrap table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: .875rem; }.orders-table-wrap th, .orders-table-wrap td { padding: 12px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }.orders-table-wrap th { color: var(--muted); font-weight: 600; background: #fafbfc; }.orders-table-wrap tr:last-child td { border-bottom: 0; }.wordpress-orders .products-toolbar .button { display: inline-flex; min-height: 42px; align-items: center; justify-content: center; gap: 8px; padding: 10px 17px; border: 1px solid var(--accent); border-radius: 8px; color: #211109; background: var(--accent); font: inherit; font-size: .875rem; font-weight: 700; line-height: 1; cursor: pointer; }.wordpress-orders .products-toolbar .button:hover { border-color: #ff8848; background: #ff8848; transform: translateY(-1px); }
