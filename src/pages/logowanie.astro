@@ -1,5 +1,7 @@
 ---
 import '../styles/auth.css';
+const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL ?? '';
+const supabaseKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
 ---
 <!doctype html>
 <html lang="pl">
@@ -34,13 +36,37 @@ import '../styles/auth.css';
       </section>
       <p class="auth-back"><a href="/">← Wróć na stronę główną</a></p>
     </main>
-    <script>
-      const tabs = document.querySelectorAll<HTMLButtonElement>('[data-auth-tab]');
-      const panels = document.querySelectorAll<HTMLElement>('[data-auth-panel]');
-      const feedback = document.querySelector<HTMLElement>('[data-auth-feedback]')!;
+    <script define:vars={{ supabaseUrl, supabaseKey }}>
+      const tabs = document.querySelectorAll('[data-auth-tab]');
+      const panels = document.querySelectorAll('[data-auth-panel]');
+      const feedback = document.querySelector('[data-auth-feedback]');
       tabs.forEach(tab => tab.addEventListener('click', () => { const mode = tab.dataset.authTab; tabs.forEach(item => { const active = item === tab; item.classList.toggle('is-active', active); item.setAttribute('aria-selected', String(active)); }); panels.forEach(panel => panel.hidden = panel.dataset.authPanel !== mode); feedback.textContent = ''; }));
-      document.querySelectorAll<HTMLFormElement>('[data-auth-form]').forEach(form => form.addEventListener('submit', event => { event.preventDefault(); if (!form.reportValidity()) return; feedback.textContent = form.dataset.mode === 'register' ? 'Konto zostanie utworzone po podłączeniu usługi uwierzytelniania.' : 'Logowanie będzie dostępne po podłączeniu usługi uwierzytelniania.'; }));
-      document.querySelectorAll<HTMLButtonElement>('[data-google]').forEach(button => button.addEventListener('click', () => { feedback.textContent = 'Logowanie przez Google wymaga konfiguracji OAuth.'; }));
+      const configured = Boolean(supabaseUrl && supabaseKey);
+      const headers = { apikey: supabaseKey, 'Content-Type': 'application/json' };
+      const saveSession = data => { localStorage.setItem('sellio-auth-session', JSON.stringify(data)); window.location.assign('/admin'); };
+      const authError = async response => { const data = await response.json().catch(() => null); return data?.msg || data?.message || 'Nie udało się uwierzytelnić.'; };
+      const submitButton = form => form.querySelector('button[type="submit"]');
+      document.querySelectorAll('[data-auth-form]').forEach(form => form.addEventListener('submit', async event => {
+        event.preventDefault(); if (!form.reportValidity()) return;
+        if (!configured) { feedback.textContent = 'Brakuje konfiguracji Supabase. Dodaj zmienne środowiskowe i wdroż stronę ponownie.'; return; }
+        const button = submitButton(form); const email = String(new FormData(form).get('email')); const password = String(new FormData(form).get('password')); button.disabled = true; feedback.textContent = 'Proszę czekać…';
+        try {
+          if (form.dataset.mode === 'register') {
+            const response = await fetch(`${supabaseUrl}/auth/v1/signup`, { method: 'POST', headers, body: JSON.stringify({ email, password, options: { emailRedirectTo: `${location.origin}/logowanie` } }) });
+            if (!response.ok) throw new Error(await authError(response)); const data = await response.json();
+            if (data.session) saveSession(data.session); else feedback.textContent = 'Sprawdź skrzynkę e-mail i potwierdź adres, aby aktywować konto.';
+          } else {
+            const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, { method: 'POST', headers, body: JSON.stringify({ email, password }) });
+            if (!response.ok) throw new Error(await authError(response)); saveSession(await response.json());
+          }
+        } catch (error) { feedback.textContent = error instanceof Error ? error.message : 'Wystąpił nieznany błąd.'; } finally { button.disabled = false; }
+      }));
+      document.querySelectorAll('[data-google]').forEach(button => button.addEventListener('click', () => {
+        if (!configured) { feedback.textContent = 'Brakuje konfiguracji Supabase. Dodaj zmienne środowiskowe i wdroż stronę ponownie.'; return; }
+        window.location.assign(`${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(`${location.origin}/logowanie`)}`);
+      }));
+      const params = new URLSearchParams(location.hash.slice(1));
+      if (params.get('access_token')) saveSession({ access_token: params.get('access_token'), refresh_token: params.get('refresh_token'), expires_in: params.get('expires_in'), token_type: params.get('token_type') });
     </script>
   </body>
 </html>

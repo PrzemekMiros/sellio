@@ -15,6 +15,9 @@ const { module } = Astro.props;
     <script is:inline>
       try { document.documentElement.dataset.theme = localStorage.getItem('sellio-admin-theme') === 'dark' ? 'dark' : 'light'; } catch {}
     </script>
+    <script is:inline>
+      try { if (!localStorage.getItem('sellio-auth-session')) location.replace('/logowanie'); } catch { location.replace('/logowanie'); }
+    </script>
     <meta name="viewport" content="width=device-width" /><meta name="description" content="Sellio — panel obsługi sprzedaży e-commerce. Prototyp aplikacji." /><title>{module.name} · Sellio</title><link rel="icon" type="image/svg+xml" href="/favicon.svg" /></head>
   <body>
     <a class="skip-link" href="#main">Przejdź do treści</a>

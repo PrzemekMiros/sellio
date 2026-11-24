@@ -38,6 +38,8 @@ Schemat dla użytkowników, firm, produktów WooCommerce, ofert Allegro i histor
 
 W Netlify dodaj zmienne środowiskowe dostępne podczas budowania strony: `PUBLIC_SUPABASE_URL` oraz `PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Ich wzór jest w `.env.example`. Klucz `sb_secret_…` nigdy nie może trafić do kodu klienckiego ani do repozytorium.
 
+W Supabase ustaw w **Authentication → URL Configuration** adres strony jako `Site URL` oraz dodaj `https://allsellio.netlify.app/logowanie` do listy `Redirect URLs`. Aby włączyć logowanie Google, w **Authentication → Providers → Google** dodaj dane OAuth utworzone w Google Cloud Console.
+
 ## Uruchomienie
 
 Wymagania Astro: Node.js ≥ 22.23.4 i npm ≥ 9.6.5. Lokalnie użyto Node.js 26.13.0; npm 9.5.1 zgłasza ostrzeżenie o wersji, ale instalacja i kompilacja działają.
