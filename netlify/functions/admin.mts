@@ -78,6 +78,9 @@ async function importCatalog(id: string, input: Record<string, unknown>, userId:
 }
 
 export default async (request: Request) => {
+  if (!(process.env.PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL) || !(process.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY)) {
+    return json({ error: 'Backend nie ma konfiguracji Supabase. Dodaj PUBLIC_SUPABASE_URL oraz PUBLIC_SUPABASE_PUBLISHABLE_KEY w Netlify dla Functions i wdroż stronę ponownie.' }, 503);
+  }
   const user = await currentUser(request);
   if (!user) return json({ error: 'Zaloguj się ponownie, aby zarządzać integracjami.' }, 401);
   const url = new URL(request.url);

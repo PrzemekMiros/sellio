@@ -18,7 +18,10 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
       try { document.documentElement.dataset.theme = localStorage.getItem('sellio-admin-theme') === 'dark' ? 'dark' : 'light'; } catch {}
     </script>
     <script is:inline>
-      try { if (!localStorage.getItem('sellio-auth-session')) location.replace('/logowanie'); } catch { location.replace('/logowanie'); }
+      try {
+        const session = JSON.parse(localStorage.getItem('sellio-auth-session') || 'null');
+        if (!session?.access_token) location.replace('/logowanie');
+      } catch { location.replace('/logowanie'); }
     </script>
     <meta name="viewport" content="width=device-width" /><meta name="description" content="Sellio — panel obsługi sprzedaży e-commerce. Prototyp aplikacji." /><title>{module.name} · Sellio</title><link rel="icon" type="image/svg+xml" href="/favicon.svg" /></head>
   <body>

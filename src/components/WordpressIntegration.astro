@@ -44,9 +44,9 @@ import Icon from './Icon.astro';
       credentials.hidden = false; state.textContent = 'Oczekuje na weryfikację w WordPress'; state.classList.add('pending');
       window.dispatchEvent(new CustomEvent('sellio:wordpress-connected', { detail: { backendUrl: backend(), storeId: data.store_id, name: value('name'), siteUrl: value('site_url') } }));
       const catalogToken = value('catalog_token');
-      const catalogResponse = await fetch(`${backend()}/v1/admin/wordpress/stores/${data.store_id}/catalog/check`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authorization() }, body: JSON.stringify({ catalog_url: value('site_url'), catalog_token: catalogToken }) });
-      const catalog = await catalogResponse.json(); if (!catalogResponse.ok) throw new Error(catalog.error || 'Nie udało się zweryfikować katalogu WordPress.');
-      feedback.textContent = 'Dane dostępowe utworzone, a katalog WordPress został zweryfikowany. Token API jest widoczny tylko teraz — skopiuj go przed zamknięciem strony.';
+      const importResponse = await fetch(`${backend()}/v1/admin/wordpress/stores/${data.store_id}/catalog/import`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authorization() }, body: JSON.stringify({ catalog_url: value('site_url'), catalog_token: catalogToken, mode: 'full' }) });
+      const imported = await importResponse.json(); if (!importResponse.ok) throw new Error(imported.error || 'Nie udało się zaimportować katalogu WordPress.');
+      feedback.textContent = `Dane dostępowe utworzone i zaimportowano ${imported.imported} produktów. Token API jest widoczny tylko teraz — skopiuj go przed zamknięciem strony.`;
     } catch (error) { feedback.textContent = error instanceof Error ? error.message : 'Wystąpił nieznany błąd.'; state.textContent = 'Błąd konfiguracji'; state.classList.add('error'); }
   });
   document.querySelector<HTMLButtonElement>('[data-copy]')!.addEventListener('click', async () => {

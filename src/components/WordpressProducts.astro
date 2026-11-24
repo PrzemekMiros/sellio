@@ -74,7 +74,7 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
         throw new Error(data.error || `Nie udało się pobrać katalogu (HTTP ${response.status}).`);
       }
       products = data.products; renderProducts();
-      count.textContent = `Wyświetlono ${data.products.length} z ${data.total} produktów.`; result.hidden = false; feedback.textContent = data.products.length ? '' : 'Katalog nie zawiera jeszcze produktów.';
+      count.textContent = `Wyświetlono ${data.products.length} z ${data.total} produktów.`; result.hidden = false; feedback.textContent = data.products.length ? '' : 'Produkty nie zostały jeszcze zaimportowane. Otwórz Integracje i utwórz połączenie ponownie albo przejdź do Import/Eksport.';
       localStorage.setItem(savedKey, JSON.stringify({ backend_url: input.get('backend_url'), store_id: input.get('store_id') }));
     } catch (error) { feedback.textContent = error instanceof TypeError ? 'Nie można połączyć się z backendem. Sprawdź adres połączenia w Integracjach.' : error instanceof Error ? error.message : 'Wystąpił nieznany błąd.'; }
   });
