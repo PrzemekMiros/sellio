@@ -111,6 +111,7 @@ button:focus-visible, a:focus-visible { outline-color: #b9470b; }
 :root[data-theme="dark"] .inventory-sync { background: var(--surface); border-color: #383943; color: #f5f5f7; box-shadow: 0 3px 9px #00000040; }
 :root[data-theme="dark"] :is(.wordpress-setup h2, .wordpress-import h2, .wordpress-products h2) { color: #f5f5f7; }
 :root[data-theme="dark"] .orders-table-wrap th { color: #f0d8c9; border-color: #3c3d46; background: #242127; }
+:root[data-theme="dark"] .integration-settings > h2 { color: #f0d8c9; background: #242127; }
 :root[data-theme="dark"] :is(.setup-intro, .catalog-details, .catalog-details p, .wordpress-import > div > p, .wordpress-products > div > p, .integration-feedback, .credentials-box p) { color: #c5c7d0; }
 :root[data-theme="dark"] .inventory-sync > div > p, :root[data-theme="dark"] .sync-toggle small { color: #c5c7d0; }
 :root[data-theme="dark"] :is(.integration-form label, .product-load-form label) { color: #e7e9ee; }
