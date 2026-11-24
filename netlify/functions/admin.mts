@@ -1,15 +1,29 @@
 import { getStore } from '@netlify/blobs';
 import type { Config } from '@netlify/functions';
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
-type Connection = { secret_hash: string; metadata: Record<string, unknown>; created_at: string; updated_at: string };
+type Connection = { secret_hash: string; owner_id?: string; metadata: Record<string, unknown>; created_at: string; updated_at: string };
 const blobs = getStore('sellio-connector');
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
-const same = (left: string, right: string) => { const a = Buffer.from(left), b = Buffer.from(right); return a.length === b.length && timingSafeEqual(a, b); };
 const validUrl = (value: unknown) => { if (typeof value !== 'string') throw new Error('Adres sklepu jest wymagany.'); const url = new URL(value); if (url.protocol !== 'https:') throw new Error('Adres sklepu musi używać HTTPS.'); return url.href.replace(/\/$/, ''); };
-const authorize = (request: Request) => { const key = process.env.BACKEND_ADMIN_KEY ?? ''; const supplied = request.headers.get('x-backend-admin-key') ?? ''; return key && supplied && same(hash(supplied), hash(key)); };
 const find = async (id: string) => (await blobs.get(`store:${id}`, { type: 'json' })) as Connection | null;
+async function currentUser(request: Request) {
+  const accessToken = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
+  const supabaseUrl = process.env.PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '';
+  const supabaseKey = process.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
+  if (!accessToken || !supabaseUrl || !supabaseKey) return null;
+  try {
+    const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/user`, { headers: { Authorization: `Bearer ${accessToken}`, apikey: supabaseKey }, signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) return null;
+    const user = await response.json();
+    return typeof user?.id === 'string' ? user as { id: string } : null;
+  } catch { return null; }
+}
+async function findOwned(id: string, userId: string) {
+  const connection = await find(id);
+  return connection?.owner_id === userId ? connection : null;
+}
 const editableProductFields = ['name', 'sku', 'regular_price', 'sale_price', 'price', 'stock_quantity', 'status', 'description', 'short_description'] as const;
 
 function productUpdate(input: Record<string, unknown>) {
@@ -31,8 +45,8 @@ function productUpdate(input: Record<string, unknown>) {
   return update;
 }
 
-async function importCatalog(id: string, input: Record<string, unknown>) {
-  const current = await find(id); if (!current) return json({ error: 'Store not found' }, 404);
+async function importCatalog(id: string, input: Record<string, unknown>, userId: string) {
+  const current = await findOwned(id, userId); if (!current) return json({ error: 'Store not found' }, 404);
   const siteUrl = validUrl(input.catalog_url);
   if (typeof input.catalog_token !== 'string' || !input.catalog_token) return json({ error: 'Token katalogu jest wymagany.' }, 400);
   const incremental = input.mode === 'incremental' && typeof current.metadata.catalog_imported_at === 'string';
@@ -64,20 +78,21 @@ async function importCatalog(id: string, input: Record<string, unknown>) {
 }
 
 export default async (request: Request) => {
-  if (!authorize(request)) return json({ error: 'Unauthorized' }, 401);
+  const user = await currentUser(request);
+  if (!user) return json({ error: 'Zaloguj się ponownie, aby zarządzać integracjami.' }, 401);
   const url = new URL(request.url);
   if (request.method === 'POST' && url.pathname === '/v1/admin/wordpress/stores') {
     let input: Record<string, unknown>; try { input = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
     try {
       if (typeof input.name !== 'string' || !input.name.trim()) throw new Error('Nazwa sklepu jest wymagana.');
       const id = `wp_${randomBytes(9).toString('hex')}`, token = randomBytes(32).toString('base64url'), now = new Date().toISOString();
-      await blobs.setJSON(`store:${id}`, { secret_hash: hash(token), metadata: { name: input.name.trim().slice(0, 100), site_url: validUrl(input.site_url), catalog_status: 'not_checked' }, created_at: now, updated_at: now });
+      await blobs.setJSON(`store:${id}`, { secret_hash: hash(token), owner_id: user.id, metadata: { name: input.name.trim().slice(0, 100), site_url: validUrl(input.site_url), catalog_status: 'not_checked' }, created_at: now, updated_at: now });
       return json({ store_id: id, api_token: token }, 201);
     } catch (error) { return json({ error: error instanceof Error ? error.message : 'Invalid request' }, 400); }
   }
   const match = url.pathname.match(/^\/v1\/admin\/wordpress\/stores\/([\w-]+)\/catalog\/check$/);
   if (request.method === 'POST' && match) {
-    const current = await find(match[1]); if (!current) return json({ error: 'Store not found' }, 404);
+    const current = await findOwned(match[1], user.id); if (!current) return json({ error: 'Store not found' }, 404);
     let input: Record<string, unknown>; try { input = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
     try {
       const siteUrl = validUrl(input.catalog_url); if (typeof input.catalog_token !== 'string' || !input.catalog_token) throw new Error('Token katalogu jest wymagany.');
@@ -92,11 +107,11 @@ export default async (request: Request) => {
   const importMatch = url.pathname.match(/^\/v1\/admin\/wordpress\/stores\/([\w-]+)\/catalog\/import$/);
   if (request.method === 'POST' && importMatch) {
     let input: Record<string, unknown>; try { input = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
-    return importCatalog(importMatch[1], input);
+    return importCatalog(importMatch[1], input, user.id);
   }
   const productsMatch = url.pathname.match(/^\/v1\/admin\/wordpress\/stores\/([\w-]+)\/products$/);
   if (request.method === 'GET' && productsMatch) {
-    const current = await find(productsMatch[1]); if (!current) return json({ error: 'Store not found' }, 404);
+    const current = await findOwned(productsMatch[1], user.id); if (!current) return json({ error: 'Store not found' }, 404);
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') ?? 50) || 50));
     const keys = (await blobs.list({ prefix: `product:${productsMatch[1]}:` })).blobs;
     const products = await Promise.all(keys.slice(0, limit).map(entry => blobs.get(entry.key, { type: 'json' })));
@@ -105,7 +120,7 @@ export default async (request: Request) => {
   }
   const productMatch = url.pathname.match(/^\/v1\/admin\/wordpress\/stores\/([\w-]+)\/products\/([\w-]+)$/);
   if (request.method === 'PATCH' && productMatch) {
-    const current = await find(productMatch[1]); if (!current) return json({ error: 'Store not found' }, 404);
+    const current = await findOwned(productMatch[1], user.id); if (!current) return json({ error: 'Store not found' }, 404);
     let input: Record<string, unknown>; try { input = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
     const existing = await blobs.get(`product:${productMatch[1]}:${productMatch[2]}`, { type: 'json' }) as Record<string, unknown> | null;
     if (!existing) return json({ error: 'Product not found' }, 404);

@@ -6,7 +6,6 @@ import Icon from './Icon.astro';
   <p class="setup-intro">Ten formularz tworzy bezpieczne dane dostępowe dla zainstalowanej wtyczki Sellio Connector. Klucz administratora pozostaje tylko w tej sesji przeglądarki.</p>
   <form class="integration-form" data-connect-form>
     <label>Adres backendu<input name="backend_url" type="url" value="https://allsellio.netlify.app" required /></label>
-    <label>Klucz administratora backendu<input name="admin_key" type="password" autocomplete="off" required /></label>
     <label>Nazwa sklepu<input name="name" placeholder="Mój sklep WooCommerce" required /></label>
     <label>Adres sklepu WordPress<input name="site_url" type="url" placeholder="https://sklep.example.pl" required /></label>
     <details class="catalog-details"><summary>Opcjonalnie: dostęp do katalogu produktów</summary><p>Najpierw wygeneruj token katalogu we wtyczce WordPress, a potem wklej go tutaj. Dzięki temu Sellio może pobrać produkty i warianty.</p><label>Token katalogu<input name="catalog_token" type="password" autocomplete="off" /></label></details>
@@ -26,14 +25,19 @@ import Icon from './Icon.astro';
   const state = document.querySelector<HTMLElement>('[data-state]')!;
   const value = (name: string) => (new FormData(form).get(name) as string).trim();
   const backend = () => value('backend_url').replace(/\/$/, '');
+  const authorization = () => {
+    const session = JSON.parse(localStorage.getItem('sellio-auth-session') || 'null');
+    if (!session?.access_token) throw new Error('Zaloguj się ponownie, aby skonfigurować integrację.');
+    return { Authorization: `Bearer ${session.access_token}` };
+  };
   const dialog = document.querySelector<HTMLDialogElement>('#wordpress-setup')!;
   const closeButton = document.createElement('button'); closeButton.type = 'button'; closeButton.className = 'integration-dialog-close'; closeButton.setAttribute('aria-label', 'Zamknij konfigurację'); closeButton.textContent = '×'; closeButton.addEventListener('click', () => dialog.close()); dialog.prepend(closeButton);
   form.addEventListener('submit', async event => {
     event.preventDefault(); credentials.hidden = true; feedback.textContent = 'Tworzę połączenie…';
     try {
-      const response = await fetch(`${backend()}/v1/admin/wordpress/stores`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Backend-Admin-Key': value('admin_key') }, body: JSON.stringify({ name: value('name'), site_url: value('site_url'), catalog_url: value('site_url'), catalog_token: value('catalog_token') }) });
+      const response = await fetch(`${backend()}/v1/admin/wordpress/stores`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authorization() }, body: JSON.stringify({ name: value('name'), site_url: value('site_url'), catalog_url: value('site_url'), catalog_token: value('catalog_token') }) });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Nie udało się utworzyć połączenia.');
-      localStorage.setItem('sellio-product-view', JSON.stringify({ backend_url: backend(), admin_key: value('admin_key'), store_id: data.store_id }));
+      localStorage.setItem('sellio-product-view', JSON.stringify({ backend_url: backend(), store_id: data.store_id }));
       document.querySelector<HTMLElement>('[data-api-url]')!.textContent = backend();
       document.querySelector<HTMLElement>('[data-store-id]')!.textContent = data.store_id;
       document.querySelector<HTMLElement>('[data-api-token]')!.textContent = data.api_token;
@@ -41,7 +45,7 @@ import Icon from './Icon.astro';
       window.dispatchEvent(new CustomEvent('sellio:wordpress-connected', { detail: { backendUrl: backend(), storeId: data.store_id, name: value('name'), siteUrl: value('site_url') } }));
       const catalogToken = value('catalog_token');
       if (catalogToken) {
-        const catalogResponse = await fetch(`${backend()}/v1/admin/wordpress/stores/${data.store_id}/catalog/check`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Backend-Admin-Key': value('admin_key') }, body: JSON.stringify({ catalog_url: value('site_url'), catalog_token: catalogToken }) });
+        const catalogResponse = await fetch(`${backend()}/v1/admin/wordpress/stores/${data.store_id}/catalog/check`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authorization() }, body: JSON.stringify({ catalog_url: value('site_url'), catalog_token: catalogToken }) });
         const catalog = await catalogResponse.json(); if (!catalogResponse.ok) throw new Error(catalog.error || 'Nie udało się zweryfikować katalogu WordPress.');
       }
       feedback.textContent = catalogToken ? 'Dane dostępowe utworzone, a katalog WordPress został zweryfikowany. Token API jest widoczny tylko teraz — skopiuj go przed zamknięciem strony.' : 'Dane dostępowe utworzone. Token API jest widoczny tylko teraz — skopiuj go przed zamknięciem strony.';

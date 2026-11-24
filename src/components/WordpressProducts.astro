@@ -3,7 +3,7 @@ import Icon from './Icon.astro';
 ---
 <section class="wordpress-products" aria-labelledby="wordpress-products-title">
   <div><span class="eyebrow">KATALOG WOO COMMERCE</span><h2 id="wordpress-products-title">Zaimportowane produkty</h2><p>Produkty są ładowane automatycznie. Ustawienia połączenia znajdziesz w zakładce Integracje.</p></div>
-  <form data-products-form hidden><input name="backend_url" type="hidden" /><input name="admin_key" type="hidden" /><input name="store_id" type="hidden" /></form>
+  <form data-products-form hidden><input name="backend_url" type="hidden" /><input name="store_id" type="hidden" /></form>
   <div class="products-toolbar"><button class="button button-primary" type="button" data-products-refresh><Icon name="box" size={16} />Odśwież produkty</button><a href="/admin/integracje" class="products-integration-link">Ustawienia integracji</a></div>
   <p class="integration-feedback" role="status" data-products-feedback></p>
   <div class="products-result" data-products-result hidden><p data-products-count></p><div class="products-table-wrap"><table><thead><tr><th>Zdjęcie</th><th>Produkt</th><th>SKU</th><th>Cena</th><th>Stan</th><th>Status</th><th><span class="sr-only">Akcje</span></th></tr></thead><tbody data-products-body></tbody></table></div></div>
@@ -36,23 +36,34 @@ import Icon from './Icon.astro';
   const editorTitle = document.querySelector<HTMLElement>('[data-editor-title]')!;
   const editorFeedback = document.querySelector<HTMLElement>('[data-editor-feedback]')!;
   const savedKey = 'sellio-product-view';
+  const authorization = () => {
+    const session = JSON.parse(localStorage.getItem('sellio-auth-session') || 'null');
+    if (!session?.access_token) throw new Error('Zaloguj się ponownie, aby pobrać katalog.');
+    return { Authorization: `Bearer ${session.access_token}` };
+  };
   let products: Record<string, any>[] = [];
   const cell = (value: unknown) => { const td = document.createElement('td'); td.textContent = value === null || value === undefined || value === '' ? '—' : String(value); return td; };
   form.addEventListener('submit', async event => {
     event.preventDefault(); result.hidden = true; feedback.textContent = 'Pobieram produkty…';
     const input = new FormData(form); const url = String(input.get('backend_url')).trim().replace(/\/$/, '');
     try {
-      const response = await fetch(`${url}/v1/admin/wordpress/stores/${String(input.get('store_id')).trim()}/products?limit=100`, { headers: { 'X-Backend-Admin-Key': String(input.get('admin_key')).trim() } });
-      const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Nie udało się pobrać katalogu.');
+      const response = await fetch(`${url}/v1/admin/wordpress/stores/${String(input.get('store_id')).trim()}/products?limit=100`, { headers: authorization() });
+      const raw = await response.text(); let data: Record<string, any> = {};
+      try { data = raw ? JSON.parse(raw) : {}; } catch { throw new Error(`Backend zwrócił nieprawidłową odpowiedź (HTTP ${response.status}). Sprawdź adres backendu w Integracjach.`); }
+      if (!response.ok) {
+        if (response.status === 401) throw new Error('Zapisany klucz administratora jest nieprawidłowy lub został zmieniony. Otwórz Integracje i skonfiguruj połączenie ponownie.');
+        if (response.status === 404) throw new Error('Nie znaleziono zapisanego połączenia WooCommerce. Otwórz Integracje i utwórz je ponownie.');
+        throw new Error(data.error || `Nie udało się pobrać katalogu (HTTP ${response.status}).`);
+      }
       products = data.products; renderProducts();
       count.textContent = `Wyświetlono ${data.products.length} z ${data.total} produktów.`; result.hidden = false; feedback.textContent = data.products.length ? '' : 'Katalog nie zawiera jeszcze produktów.';
-      localStorage.setItem(savedKey, JSON.stringify({ backend_url: input.get('backend_url'), admin_key: input.get('admin_key'), store_id: input.get('store_id') }));
-    } catch (error) { feedback.textContent = error instanceof Error ? error.message : 'Wystąpił nieznany błąd.'; }
+      localStorage.setItem(savedKey, JSON.stringify({ backend_url: input.get('backend_url'), store_id: input.get('store_id') }));
+    } catch (error) { feedback.textContent = error instanceof TypeError ? 'Nie można połączyć się z backendem. Sprawdź adres połączenia w Integracjach.' : error instanceof Error ? error.message : 'Wystąpił nieznany błąd.'; }
   });
   refresh.addEventListener('click', () => {
     try {
       const saved = JSON.parse(localStorage.getItem(savedKey) || 'null');
-      if (!saved?.backend_url || !saved?.admin_key || !saved?.store_id) { feedback.textContent = 'Najpierw skonfiguruj połączenie WooCommerce w zakładce Integracje.'; return; }
+      if (!saved?.backend_url || !saved?.store_id) { feedback.textContent = 'Najpierw skonfiguruj połączenie WooCommerce w zakładce Integracje.'; return; }
       for (const [name, value] of Object.entries(saved)) (form.elements.namedItem(name) as HTMLInputElement).value = String(value); form.requestSubmit();
     } catch { feedback.textContent = 'Nie udało się odczytać konfiguracji połączenia.'; }
   });
@@ -74,16 +85,16 @@ import Icon from './Icon.astro';
   document.querySelector<HTMLElement>('[data-editor-cancel]')!.addEventListener('click', () => editor.close());
   editorForm.addEventListener('submit', async event => {
     event.preventDefault(); editorFeedback.textContent = 'Zapisuję zmiany…';
-    const saved = JSON.parse(localStorage.getItem(savedKey) || 'null'); if (!saved?.backend_url || !saved?.admin_key || !saved?.store_id) { editorFeedback.textContent = 'Brakuje danych połączenia z katalogiem.'; return; }
+    const saved = JSON.parse(localStorage.getItem(savedKey) || 'null'); if (!saved?.backend_url || !saved?.store_id) { editorFeedback.textContent = 'Brakuje danych połączenia z katalogiem.'; return; }
     const values = new FormData(editorForm); const id = String(values.get('id')); const payload: Record<string, unknown> = {};
     for (const field of ['name', 'sku', 'regular_price', 'sale_price', 'stock_quantity', 'status', 'short_description', 'description']) payload[field] = values.get(field) || null;
     payload.price = payload.sale_price || payload.regular_price;
     if (payload.stock_quantity !== null) payload.stock_quantity = Number(payload.stock_quantity);
     try {
-      const response = await fetch(`${String(saved.backend_url).replace(/\/$/, '')}/v1/admin/wordpress/stores/${encodeURIComponent(saved.store_id)}/products/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Backend-Admin-Key': String(saved.admin_key) }, body: JSON.stringify(payload) });
+      const response = await fetch(`${String(saved.backend_url).replace(/\/$/, '')}/v1/admin/wordpress/stores/${encodeURIComponent(saved.store_id)}/products/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authorization() }, body: JSON.stringify(payload) });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Nie udało się zapisać produktu.');
       const index = products.findIndex(product => String(product.id) === id); if (index >= 0) products[index] = data.product; renderProducts(); editor.close(); feedback.textContent = 'Zmiany w produkcie zostały zapisane.';
     } catch (error) { editorFeedback.textContent = error instanceof Error ? error.message : 'Nie udało się zapisać produktu.'; }
   });
-  try { const saved = JSON.parse(localStorage.getItem(savedKey) || 'null'); if (saved?.backend_url && saved?.admin_key && saved?.store_id) { for (const [name, value] of Object.entries(saved)) (form.elements.namedItem(name) as HTMLInputElement).value = String(value); form.requestSubmit(); } } catch {}
+  try { const saved = JSON.parse(localStorage.getItem(savedKey) || 'null'); if (saved?.backend_url && saved?.store_id) { for (const [name, value] of Object.entries(saved)) (form.elements.namedItem(name) as HTMLInputElement).value = String(value); form.requestSubmit(); } } catch {}
 </script>
