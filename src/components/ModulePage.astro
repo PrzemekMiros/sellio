@@ -1,16 +1,17 @@
 ---
 import Icon from './Icon.astro';
+import IntegrationOverview from './IntegrationOverview.astro';
 import WordpressIntegration from './WordpressIntegration.astro';
 import WordpressProductImport from './WordpressProductImport.astro';
 import WordpressProducts from './WordpressProducts.astro';
 import type { Module } from '../config/modules';
 interface Props { module: Module; }
 const { module } = Astro.props;
-const integrations = [{name: 'Allegro', letter: 'a', type: 'Marketplace'}, {name: 'Wordpress', letter: 'W', type: 'Sklep internetowy'}, {name: 'Przewoźnicy', letter: null, type: 'Dostawa i logistyka'}, {name: 'Fakturowanie', letter: null, type: 'Dokumenty sprzedaży'}];
+const completedModules = ['integracje', 'produkty/import-eksport'];
 ---
-<div class="page-heading"><div><p class="eyebrow">TWOJE CENTRUM SPRZEDAŻY</p><h1>{module.name}</h1><p>{module.description}</p></div>{module.slug !== 'produkty/import-eksport' && <span class="neutral-badge"><Icon name="clock" size={14} />W przygotowaniu</span>}</div>
-{module.slug !== 'produkty/import-eksport' && <section class="module-placeholder" aria-label={`${module.name} — w przygotowaniu`}><div class="placeholder-art"><div class="art-orbit"></div><span class="large-icon"><Icon name={module.icon} size={34} /></span><span class="art-mini"><Icon name="clock" size={18} /></span></div><span class="eyebrow">JUŻ WKRÓTCE W SELLIO</span><h2>Miejsce na nowe możliwości</h2><p>Przygotowujemy moduł „{module.name}”.<br />Jego funkcje będą dostępne w kolejnej wersji aplikacji.</p><span class="neutral-badge"><Icon name="clock" size={14} />W przygotowaniu</span></section>}
-{module.slug === 'integracje' && <section class="integration-section"><div class="section-heading"><h2>Planowane integracje</h2><span>4 obszary połączeń</span></div><div class="integration-grid">{integrations.map(item => <article class="integration-card"><span class="integration-logo">{item.letter || <Icon name={item.name === 'Przewoźnicy' ? 'truck' : 'file'} size={26} />}</span><h3>{item.name}</h3><p>{item.type}</p><span class="neutral-badge">W przygotowaniu</span></article>)}</div></section>}
+<div class="page-heading"><div><p class="eyebrow">TWOJE CENTRUM SPRZEDAŻY</p><h1>{module.name}</h1><p>{module.description}</p></div>{!completedModules.includes(module.slug) && <span class="neutral-badge"><Icon name="clock" size={14} />W przygotowaniu</span>}</div>
+{!completedModules.includes(module.slug) && <section class="module-placeholder" aria-label={`${module.name} — w przygotowaniu`}><div class="placeholder-art"><div class="art-orbit"></div><span class="large-icon"><Icon name={module.icon} size={34} /></span><span class="art-mini"><Icon name="clock" size={18} /></span></div><span class="eyebrow">JUŻ WKRÓTCE W SELLIO</span><h2>Miejsce na nowe możliwości</h2><p>Przygotowujemy moduł „{module.name}”.<br />Jego funkcje będą dostępne w kolejnej wersji aplikacji.</p><span class="neutral-badge"><Icon name="clock" size={14} />W przygotowaniu</span></section>}
+{module.slug === 'integracje' && <IntegrationOverview />}
 {module.slug === 'integracje' && <WordpressIntegration />}
 {module.slug === 'produkty/import-eksport' && <WordpressProductImport />}
 {module.slug === 'produkty/lista' && <WordpressProducts />}
