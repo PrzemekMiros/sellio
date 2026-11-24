@@ -1,7 +1,7 @@
 ---
 import Icon from './Icon.astro';
 ---
-<section id="wordpress-setup" class="wordpress-setup" aria-labelledby="wordpress-setup-title" hidden>
+<dialog id="wordpress-setup" class="wordpress-setup" aria-labelledby="wordpress-setup-title">
   <div class="section-heading"><div><span class="eyebrow">AKTYWNA INTEGRACJA</span><h2 id="wordpress-setup-title">Połącz WooCommerce</h2></div><span class="integration-state" data-state>Nie skonfigurowano</span></div>
   <p class="setup-intro">Ten formularz tworzy bezpieczne dane dostępowe dla zainstalowanej wtyczki Sellio Connector. Klucz administratora pozostaje tylko w tej sesji przeglądarki.</p>
   <form class="integration-form" data-connect-form>
@@ -18,7 +18,7 @@ import Icon from './Icon.astro';
     <button class="button" type="button" data-copy>Skopiuj dane</button>
   </div>
   <p class="integration-feedback" role="status" data-feedback></p>
-</section>
+</dialog>
 <script>
   const form = document.querySelector<HTMLFormElement>('[data-connect-form]')!;
   const feedback = document.querySelector<HTMLElement>('[data-feedback]')!;
@@ -26,6 +26,8 @@ import Icon from './Icon.astro';
   const state = document.querySelector<HTMLElement>('[data-state]')!;
   const value = (name: string) => (new FormData(form).get(name) as string).trim();
   const backend = () => value('backend_url').replace(/\/$/, '');
+  const dialog = document.querySelector<HTMLDialogElement>('#wordpress-setup')!;
+  const closeButton = document.createElement('button'); closeButton.type = 'button'; closeButton.className = 'integration-dialog-close'; closeButton.setAttribute('aria-label', 'Zamknij konfigurację'); closeButton.textContent = '×'; closeButton.addEventListener('click', () => dialog.close()); dialog.prepend(closeButton);
   form.addEventListener('submit', async event => {
     event.preventDefault(); credentials.hidden = true; feedback.textContent = 'Tworzę połączenie…';
     try {
@@ -35,6 +37,7 @@ import Icon from './Icon.astro';
       document.querySelector<HTMLElement>('[data-store-id]')!.textContent = data.store_id;
       document.querySelector<HTMLElement>('[data-api-token]')!.textContent = data.api_token;
       credentials.hidden = false; state.textContent = 'Oczekuje na weryfikację w WordPress'; state.classList.add('pending');
+      window.dispatchEvent(new CustomEvent('sellio:wordpress-connected', { detail: { backendUrl: backend(), storeId: data.store_id, name: value('name'), siteUrl: value('site_url') } }));
       const catalogToken = value('catalog_token');
       if (catalogToken) {
         const catalogResponse = await fetch(`${backend()}/v1/admin/wordpress/stores/${data.store_id}/catalog/check`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Backend-Admin-Key': value('admin_key') }, body: JSON.stringify({ catalog_url: value('site_url'), catalog_token: catalogToken }) });
@@ -47,4 +50,38 @@ import Icon from './Icon.astro';
     const api = document.querySelector<HTMLElement>('[data-api-url]')!.textContent; const id = document.querySelector<HTMLElement>('[data-store-id]')!.textContent; const token = document.querySelector<HTMLElement>('[data-api-token]')!.textContent;
     await navigator.clipboard.writeText(`API Sellio: ${api}\nID sklepu: ${id}\nToken API: ${token}`); feedback.textContent = 'Dane skopiowane do schowka.';
   });
+</script>
+<script define:vars={{ supabaseUrl: import.meta.env.PUBLIC_SUPABASE_URL ?? '', supabaseKey: import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '' }}>
+  const storedConnectionForm = document.querySelector('[data-connect-form]');
+  const storedConnectionState = document.querySelector('[data-state]');
+  const getSession = () => JSON.parse(localStorage.getItem('sellio-auth-session') || 'null');
+  const apiHeaders = token => ({ apikey: supabaseKey, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' });
+  async function currentOrganization(token) {
+    const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, { headers: apiHeaders(token) });
+    if (!userResponse.ok) throw new Error('Brak aktywnej sesji.');
+    const user = await userResponse.json();
+    const membershipResponse = await fetch(`${supabaseUrl}/rest/v1/organization_members?user_id=eq.${encodeURIComponent(user.id)}&select=organization_id&limit=1`, { headers: apiHeaders(token) });
+    const memberships = await membershipResponse.json();
+    if (!membershipResponse.ok || !memberships[0]) throw new Error('Nie znaleziono firmy dla tego konta.');
+    return memberships[0].organization_id;
+  }
+  async function saveConnection(detail) {
+    const session = getSession(); if (!session?.access_token || !supabaseUrl || !supabaseKey) return;
+    const organizationId = await currentOrganization(session.access_token);
+    const response = await fetch(`${supabaseUrl}/rest/v1/stores?on_conflict=organization_id,provider,external_id`, { method: 'POST', headers: { ...apiHeaders(session.access_token), Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ organization_id: organizationId, provider: 'woocommerce', name: detail.name, site_url: detail.siteUrl, external_id: detail.storeId, credentials: { backend_url: detail.backendUrl } }) });
+    if (!response.ok) throw new Error('Nie udało się zapisać danych integracji w bazie.');
+  }
+  async function loadConnection() {
+    const session = getSession(); if (!session?.access_token || !supabaseUrl || !supabaseKey) return;
+    const organizationId = await currentOrganization(session.access_token);
+    const response = await fetch(`${supabaseUrl}/rest/v1/stores?organization_id=eq.${encodeURIComponent(organizationId)}&provider=eq.woocommerce&select=name,site_url,credentials&order=updated_at.desc&limit=1`, { headers: apiHeaders(session.access_token) });
+    const stores = await response.json(); if (!response.ok || !stores[0] || !storedConnectionForm) return;
+    const store = stores[0];
+    storedConnectionForm.elements.namedItem('name').value = store.name || '';
+    storedConnectionForm.elements.namedItem('site_url').value = store.site_url || '';
+    storedConnectionForm.elements.namedItem('backend_url').value = store.credentials?.backend_url || '';
+    if (storedConnectionState) storedConnectionState.textContent = `Skonfigurowano: ${store.name}`;
+  }
+  window.addEventListener('sellio:wordpress-connected', event => saveConnection(event.detail).then(() => { if (storedConnectionState) storedConnectionState.textContent = 'Zapisano w Twojej przestrzeni'; }).catch(() => {}));
+  loadConnection().catch(() => {});
 </script>

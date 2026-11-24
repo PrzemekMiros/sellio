@@ -21,8 +21,8 @@ import Icon from './Icon.astro';
   </tbody></table></div>
 </section>
 <script>
-  const setup = document.querySelector<HTMLElement>('#wordpress-setup');
-  const showSetup = () => { if (!setup) return; setup.hidden = false; setup.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  const setup = document.querySelector<HTMLDialogElement>('#wordpress-setup');
+  const showSetup = () => { if (setup && !setup.open) setup.showModal(); };
   document.querySelector<HTMLElement>('[data-scroll-to-woo]')?.addEventListener('click', showSetup);
   document.querySelector<HTMLElement>('[data-open-wordpress-setup]')?.addEventListener('click', event => { event.preventDefault(); showSetup(); });
 </script>

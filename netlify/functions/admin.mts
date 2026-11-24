@@ -35,10 +35,13 @@ async function importCatalog(id: string, input: Record<string, unknown>) {
   const current = await find(id); if (!current) return json({ error: 'Store not found' }, 404);
   const siteUrl = validUrl(input.catalog_url);
   if (typeof input.catalog_token !== 'string' || !input.catalog_token) return json({ error: 'Token katalogu jest wymagany.' }, 400);
+  const incremental = input.mode === 'incremental' && typeof current.metadata.catalog_imported_at === 'string';
+  const modifiedAfter = incremental ? String(current.metadata.catalog_imported_at) : '';
   let imported = 0, page = 1, pages = 1;
   try {
     while (page <= pages && page <= 100) {
-      const response = await fetch(`${siteUrl}/wp-json/sellio/v1/products?page=${page}&per_page=100`, { headers: { 'X-Sellio-Catalog-Token': input.catalog_token }, signal: AbortSignal.timeout(15_000) });
+      const catalogUrl = new URL(`${siteUrl}/wp-json/sellio/v1/products`); catalogUrl.searchParams.set('page', String(page)); catalogUrl.searchParams.set('per_page', '100'); if (modifiedAfter) catalogUrl.searchParams.set('modified_after', modifiedAfter);
+      const response = await fetch(catalogUrl, { headers: { 'X-Sellio-Catalog-Token': input.catalog_token }, signal: AbortSignal.timeout(15_000) });
       const products = await response.json().catch(() => null);
       if (!response.ok) {
         const retryAfter = response.headers.get('retry-after');
@@ -56,7 +59,7 @@ async function importCatalog(id: string, input: Record<string, unknown>) {
     }
     if (page <= pages) throw new Error('Katalog jest zbyt duży dla jednorazowego importu.');
     await blobs.setJSON(`store:${id}`, { ...current, metadata: { ...current.metadata, catalog_status: 'imported', catalog_imported_at: new Date().toISOString(), product_count: imported }, updated_at: new Date().toISOString() });
-    return json({ imported, pages: page - 1 });
+    return json({ imported, pages: page - 1, mode: incremental ? 'incremental' : 'full' });
   } catch (error) { return json({ error: error instanceof Error ? error.message : 'Catalog unavailable' }, 502); }
 }
 

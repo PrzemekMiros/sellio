@@ -9,7 +9,8 @@ import Icon from './Icon.astro';
     <label>ID sklepu<input name="store_id" placeholder="wp_…" required /></label>
     <label>Adres sklepu WordPress<input name="catalog_url" type="url" value="https://automatelab.pl" required /></label>
     <label class="full-width">Token katalogu WordPress<input name="catalog_token" type="password" autocomplete="off" required /></label>
-    <button class="button button-primary" type="submit"><Icon name="box" size={16} />Importuj produkty</button>
+    <label class="full-width import-mode"><span>Zakres importu</span><select name="mode"><option value="incremental">Tylko nowe i zmienione produkty</option><option value="full">Cały katalog produktów</option></select><small>Przy pierwszym imporcie zostanie pobrany cały katalog.</small></label>
+    <button class="button button-primary" type="submit"><Icon name="box" size={16} />Importuj nowe produkty</button>
   </form>
   <p class="integration-feedback" role="status" data-import-feedback></p>
 </section>
@@ -31,10 +32,10 @@ import Icon from './Icon.astro';
     event.preventDefault(); importFeedback.textContent = 'Importuję katalog produktów…';
     const input = new FormData(importForm); const url = String(input.get('backend_url')).trim().replace(/\/$/, '');
     try {
-      const response = await fetch(`${url}/v1/admin/wordpress/stores/${String(input.get('store_id')).trim()}/catalog/import`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Backend-Admin-Key': String(input.get('admin_key')).trim() }, body: JSON.stringify({ catalog_url: String(input.get('catalog_url')).trim(), catalog_token: String(input.get('catalog_token')).trim() }) });
+      const response = await fetch(`${url}/v1/admin/wordpress/stores/${String(input.get('store_id')).trim()}/catalog/import`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Backend-Admin-Key': String(input.get('admin_key')).trim() }, body: JSON.stringify({ catalog_url: String(input.get('catalog_url')).trim(), catalog_token: String(input.get('catalog_token')).trim(), mode: String(input.get('mode')) }) });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Import katalogu nie powiódł się.');
       localStorage.setItem('sellio-product-view', JSON.stringify({ backend_url: input.get('backend_url'), admin_key: input.get('admin_key'), store_id: input.get('store_id') }));
-      importFeedback.textContent = `Zaimportowano ${data.imported} produktów w ${data.pages} partiach. Lista produktów będzie od teraz ładować się automatycznie.`;
+      importFeedback.textContent = data.mode === 'incremental' ? `Zaimportowano ${data.imported} nowych lub zmienionych produktów. Lista produktów została odświeżona.` : `Zaimportowano ${data.imported} produktów w ${data.pages} partiach. Lista produktów będzie od teraz ładować się automatycznie.`;
     } catch (error) { importFeedback.textContent = error instanceof Error ? error.message : 'Wystąpił nieznany błąd.'; }
   });
   const syncForm = document.querySelector<HTMLFormElement>('[data-sync-form]')!;
