@@ -1,5 +1,10 @@
 ---
 import Icon from './Icon.astro';
+import '../styles/product-editor.css';
+const editorTabs = [
+  ['product', 'Produkt'], ['sales', 'Sprzedaż i magazyn'], ['information', 'Informacje'],
+  ['media', 'Media'], ['variants', 'Warianty'], ['relations', 'Relacje'],
+];
 ---
 <section class="wordpress-products" aria-labelledby="wordpress-products-title">
   <div><span class="eyebrow">KATALOG WOO COMMERCE</span><h2 id="wordpress-products-title">Zaimportowane produkty</h2><p>Produkty są ładowane automatycznie. Ustawienia połączenia znajdziesz w zakładce Integracje.</p></div>
@@ -10,18 +15,54 @@ import Icon from './Icon.astro';
 </section>
 <dialog class="product-editor" data-product-editor aria-labelledby="product-editor-title">
   <form method="dialog" class="product-editor-header"><div><span class="eyebrow">EDYCJA PRODUKTU</span><h2 id="product-editor-title" data-editor-title>Produkt</h2></div><button class="icon-button" value="cancel" aria-label="Zamknij edycję">×</button></form>
-  <form class="product-editor-form" data-product-editor-form>
+  <div class="product-editor-tabs" role="tablist" aria-label="Sekcje edycji produktu">
+    {editorTabs.map(([id, label], index) => <button type="button" role="tab" id={`product-tab-${id}`} aria-controls={`product-panel-${id}`} aria-selected={index === 0 ? 'true' : 'false'} tabindex={index === 0 ? 0 : -1} data-editor-tab={id}>{label}</button>)}
+  </div>
+  <form class="product-editor-form" data-product-editor-form novalidate>
     <input type="hidden" name="id" />
-    <label>Nazwa produktu<input name="name" required maxlength="255" /></label>
-    <label>SKU<input name="sku" maxlength="100" /></label>
-    <label>Cena regularna<input name="regular_price" type="text" inputmode="decimal" /></label>
-    <label>Cena promocyjna<input name="sale_price" type="text" inputmode="decimal" /></label>
-    <label>Stan magazynowy<input name="stock_quantity" type="number" min="0" step="1" /></label>
-    <label>Status<select name="status"><option value="publish">Opublikowany</option><option value="draft">Szkic</option><option value="private">Prywatny</option><option value="pending">Oczekujący</option></select></label>
-    <label class="product-editor-full">Krótki opis<textarea name="short_description" rows="3"></textarea></label>
-    <label class="product-editor-full">Opis<textarea name="description" rows="6"></textarea></label>
-    <p class="integration-feedback product-editor-full" role="status" data-editor-feedback></p>
-    <div class="product-editor-actions product-editor-full"><button class="button button-primary" type="button" data-editor-cancel>Anuluj</button><button class="button button-primary" type="submit">Zapisz zmiany</button></div>
+    <div class="product-editor-content">
+      <section class="product-editor-panel" role="tabpanel" id="product-panel-product" aria-labelledby="product-tab-product" data-editor-panel="product">
+        <div class="product-panel-heading"><h3>Podstawowe dane produktu</h3><p>Nazwa, identyfikacja i widoczność w katalogu.</p></div>
+        <div class="product-editor-grid">
+          <label class="product-editor-full">Nazwa produktu<input name="name" required maxlength="255" /></label>
+          <label>SKU<input name="sku" maxlength="100" /></label>
+          <label>Status<select name="status"><option value="publish">Opublikowany</option><option value="draft">Szkic</option><option value="private">Prywatny</option><option value="pending">Oczekujący</option></select></label>
+          <label class="product-editor-full">Krótki opis<textarea name="short_description" rows="6"></textarea></label>
+        </div>
+      </section>
+      <section class="product-editor-panel" role="tabpanel" id="product-panel-sales" aria-labelledby="product-tab-sales" data-editor-panel="sales" hidden>
+        <div class="product-panel-heading"><h3>Sprzedaż i magazyn</h3><p>Ceny produktu i dostępna ilość w magazynie.</p></div>
+        <div class="product-editor-grid">
+          <label>Cena regularna<input name="regular_price" type="text" inputmode="decimal" /></label>
+          <label>Cena promocyjna<input name="sale_price" type="text" inputmode="decimal" /></label>
+          <label>Stan magazynowy<input name="stock_quantity" type="number" min="0" step="1" /></label>
+        </div>
+        <dl class="product-editor-details" data-editor-sales></dl>
+      </section>
+      <section class="product-editor-panel" role="tabpanel" id="product-panel-information" aria-labelledby="product-tab-information" data-editor-panel="information" hidden>
+        <div class="product-panel-heading"><h3>Informacje o produkcie</h3><p>Pełny opis oraz dane zaimportowane ze sklepu.</p></div>
+        <label>Opis<textarea name="description" rows="10"></textarea></label>
+        <dl class="product-editor-details" data-editor-information></dl>
+      </section>
+      <section class="product-editor-panel" role="tabpanel" id="product-panel-media" aria-labelledby="product-tab-media" data-editor-panel="media" hidden>
+        <div class="product-panel-heading"><h3>Media produktu</h3><p>Podgląd zdjęć zaimportowanych z WooCommerce. Galerię zmienisz w sklepie źródłowym.</p></div>
+        <div class="product-editor-gallery" data-editor-media></div>
+      </section>
+      <section class="product-editor-panel" role="tabpanel" id="product-panel-variants" aria-labelledby="product-tab-variants" data-editor-panel="variants" hidden>
+        <div class="product-panel-heading"><h3>Warianty produktu</h3><p>Atrybuty wariantów i powiązane pozycje z aktualnie załadowanego katalogu.</p></div>
+        <dl class="product-editor-details" data-editor-attributes></dl>
+        <div data-editor-variants></div>
+      </section>
+      <section class="product-editor-panel" role="tabpanel" id="product-panel-relations" aria-labelledby="product-tab-relations" data-editor-panel="relations" hidden>
+        <div class="product-panel-heading"><h3>Relacje produktu</h3><p>Powiązania i kategorie odczytane ze sklepu źródłowego.</p></div>
+        <dl class="product-editor-details" data-editor-relations></dl>
+        <p class="product-editor-empty">Powiązania z ofertami marketplace nie są jeszcze dostępne.</p>
+      </section>
+    </div>
+    <div class="product-editor-footer">
+      <p class="integration-feedback" role="status" data-editor-feedback></p>
+      <div class="product-editor-actions"><button class="button" type="button" data-editor-cancel>Anuluj</button><button class="button button-primary" type="submit">Zapisz zmiany</button></div>
+    </div>
   </form>
 </dialog>
 <script>
@@ -37,6 +78,64 @@ import Icon from './Icon.astro';
   const editorForm = document.querySelector<HTMLFormElement>('[data-product-editor-form]')!;
   const editorTitle = document.querySelector<HTMLElement>('[data-editor-title]')!;
   const editorFeedback = document.querySelector<HTMLElement>('[data-editor-feedback]')!;
+  const tabs = Array.from(editor.querySelectorAll<HTMLButtonElement>('[data-editor-tab]'));
+  const panels = Array.from(editor.querySelectorAll<HTMLElement>('[data-editor-panel]'));
+  function selectTab(id: string, focus = false) {
+    for (const tab of tabs) {
+      const selected = tab.dataset.editorTab === id;
+      tab.setAttribute('aria-selected', String(selected)); tab.tabIndex = selected ? 0 : -1;
+      if (selected && focus) { tab.focus(); tab.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
+    }
+    for (const panel of panels) panel.hidden = panel.dataset.editorPanel !== id;
+    editor.querySelector<HTMLElement>('.product-editor-content')!.scrollTop = 0;
+  }
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => selectTab(tab.dataset.editorTab!));
+    tab.addEventListener('keydown', event => {
+      let next = index;
+      if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+      else if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
+      else if (event.key === 'Home') next = 0;
+      else if (event.key === 'End') next = tabs.length - 1;
+      else return;
+      event.preventDefault(); selectTab(tabs[next].dataset.editorTab!, true);
+    });
+  });
+  function details(selector: string, entries: [string, unknown][]) {
+    const target = editor.querySelector<HTMLElement>(selector)!; target.replaceChildren();
+    for (const [label, value] of entries) {
+      const item = document.createElement('div'); const term = document.createElement('dt'); const description = document.createElement('dd');
+      term.textContent = label; description.textContent = value === null || value === undefined || value === '' ? '—' : String(value);
+      item.append(term, description); target.append(item);
+    }
+  }
+  const dateLabel = (value: unknown) => { const date = new Date(String(value)); return value && !Number.isNaN(date.getTime()) ? date.toLocaleString('pl-PL') : '—'; };
+  function renderProductDetails(product: Record<string, any>) {
+    details('[data-editor-sales]', [['Waluta', product.currency], ['Dostępność', ({ instock: 'W magazynie', outofstock: 'Brak w magazynie', onbackorder: 'Na zamówienie' } as Record<string, string>)[product.stock_status] || product.stock_status], ['Zarządzanie stanem', product.manage_stock === true ? 'Włączone' : product.manage_stock === false ? 'Wyłączone' : '—']]);
+    details('[data-editor-information]', [['ID produktu', product.id], ['Typ produktu', ({ simple: 'Prosty', variable: 'Z wariantami', variation: 'Wariant' } as Record<string, string>)[product.type] || product.type], ['Utworzono', dateLabel(product.created_at)], ['Ostatnia zmiana', dateLabel(product.modified_at)]]);
+    const categories = Array.isArray(product.categories) ? product.categories.map((category: Record<string, any>) => category.name).filter(Boolean).join(', ') : '';
+    const parent = products.find(item => String(item.id) === String(product.parent_id));
+    details('[data-editor-relations]', [['Produkt nadrzędny', product.parent_id ? `${parent?.name || 'Produkt'} (ID: ${product.parent_id})` : 'Brak — produkt samodzielny'], ['Kategorie', categories || 'Brak przypisanych kategorii'], ['Adres produktu w sklepie', product.url]]);
+    const attributes = Array.isArray(product.attributes) ? product.attributes.filter((attribute: Record<string, any>) => attribute.variation) : [];
+    details('[data-editor-attributes]', attributes.map((attribute: Record<string, any>) => [attribute.name, Array.isArray(attribute.options) ? attribute.options.join(', ') : attribute.options]));
+    const variants = products.filter(item => product.id != null && item.parent_id != null && String(item.parent_id) === String(product.id));
+    const variantsTarget = editor.querySelector<HTMLElement>('[data-editor-variants]')!; variantsTarget.replaceChildren();
+    if (variants.length) {
+      const list = document.createElement('ul'); list.className = 'product-editor-variants';
+      for (const variant of variants) { const item = document.createElement('li'); item.textContent = `${variant.name || 'Wariant'} · SKU: ${variant.sku || '—'} · Stan: ${variant.stock_quantity ?? '—'}`; list.append(item); }
+      variantsTarget.append(list);
+    } else { const empty = document.createElement('p'); empty.className = 'product-editor-empty'; empty.textContent = product.type === 'variable' ? 'Brak wariantów w aktualnie załadowanym katalogu.' : product.type === 'variation' ? 'Ten produkt jest wariantem. Produkt nadrzędny znajdziesz w zakładce Relacje.' : 'Ten produkt nie ma załadowanych wariantów.'; variantsTarget.append(empty); }
+    const gallery = editor.querySelector<HTMLElement>('[data-editor-media]')!; gallery.replaceChildren();
+    const images = Array.isArray(product.images) ? product.images : [];
+    for (const [index, image] of images.entries()) {
+      let url: URL; try { url = new URL(image.url); } catch { continue; }
+      if (!['https:', 'http:'].includes(url.protocol)) continue;
+      const figure = document.createElement('figure'); const img = document.createElement('img'); const caption = document.createElement('figcaption');
+      img.src = url.href; img.alt = image.alt || product.name || ''; img.loading = 'lazy';
+      caption.textContent = index === 0 ? 'Zdjęcie główne' : `Zdjęcie ${index + 1}`; figure.append(img, caption); gallery.append(figure);
+    }
+    if (!gallery.children.length) { const empty = document.createElement('p'); empty.className = 'product-editor-empty'; empty.textContent = 'Ten produkt nie ma zaimportowanych zdjęć.'; gallery.append(empty); }
+  }
   let currentConnection: { backend_url: string; store_id: string } | null = null;
   async function savedConnection() {
     const store = await loadWordpressStore();
@@ -81,11 +180,19 @@ import Icon from './Icon.astro';
   function openEditor(product: Record<string, any>) {
     editorForm.reset(); editorFeedback.textContent = ''; editorTitle.textContent = product.name || 'Produkt';
     for (const [name, value] of Object.entries(product)) { const input = editorForm.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null; if (input) input.value = value ?? ''; }
+    renderProductDetails(product); selectTab('product');
     editor.showModal();
   }
   document.querySelector<HTMLElement>('[data-editor-cancel]')!.addEventListener('click', () => editor.close());
   editorForm.addEventListener('submit', async event => {
-    event.preventDefault(); editorFeedback.textContent = 'Zapisuję zmiany…';
+    event.preventDefault();
+    const invalid = editorForm.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(':invalid');
+    if (invalid) {
+      const panel = invalid.closest<HTMLElement>('[data-editor-panel]');
+      if (panel) selectTab(panel.dataset.editorPanel!);
+      invalid.reportValidity(); return;
+    }
+    editorFeedback.textContent = 'Zapisuję zmiany…';
     const saved = currentConnection; if (!saved?.backend_url || !saved?.store_id) { editorFeedback.textContent = 'Brakuje danych połączenia z katalogiem.'; return; }
     const values = new FormData(editorForm); const id = String(values.get('id')); const payload: Record<string, unknown> = {};
     for (const field of ['name', 'sku', 'regular_price', 'sale_price', 'stock_quantity', 'status', 'short_description', 'description']) payload[field] = values.get(field) || null;

@@ -1,0 +1,75 @@
+---
+import Icon from './Icon.astro';
+---
+<div class="account-menu" data-account-menu>
+  <button class="account-trigger" type="button" aria-label="Menu konta" aria-expanded="false" aria-controls="account-dropdown" data-account-trigger disabled>
+    <span class="avatar small" aria-label="Moja przestrzeń" data-user-avatar>M</span>
+  </button>
+  <div class="account-dropdown" id="account-dropdown" hidden>
+    <nav aria-label="Konto użytkownika">
+      <a href="/admin/ustawienia"><Icon name="settings" size={18} />Ustawienia konta</a>
+      <a href="/admin/pomoc-i-kontakt"><Icon name="info" size={18} />Informacje</a>
+    </nav>
+    <div class="account-divider"></div>
+    <button class="account-logout" type="button" data-account-logout><Icon name="logout" size={18} /><span data-logout-label>Wyloguj się</span></button>
+    <p class="account-feedback" role="status" data-account-feedback hidden></p>
+  </div>
+</div>
+
+<style>
+  .account-menu { position: relative; flex-shrink: 0; }
+  .account-trigger { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 1px solid transparent; border-radius: 50%; background: transparent; }
+  .account-trigger:hover, .account-trigger[aria-expanded="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .account-dropdown { position: absolute; z-index: 50; top: calc(100% + 8px); right: 0; width: min(236px, calc(100vw - 32px)); padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 32px #0003; }
+  .account-dropdown[hidden], .account-feedback[hidden] { display: none; }
+  .account-dropdown nav { padding: 0; }
+  .account-dropdown a, .account-logout { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 10px 12px; border: 0; border-radius: 7px; background: transparent; font-size: .875rem; font-weight: 500; text-align: left; }
+  .account-dropdown a:hover, .account-logout:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .account-dropdown a:focus-visible, .account-logout:focus-visible { outline-offset: -3px; }
+  .account-divider { height: 1px; margin: 6px 4px; background: var(--border); }
+  .account-logout:disabled { cursor: wait; opacity: .6; }
+  .account-feedback { margin: 8px 12px; color: var(--muted); font-size: .75rem; line-height: 1.5; }
+</style>
+
+<script>
+  import { authClient } from '../lib/auth';
+  const menu = document.querySelector<HTMLElement>('[data-account-menu]')!;
+  const trigger = menu.querySelector<HTMLButtonElement>('[data-account-trigger]')!;
+  const dropdown = menu.querySelector<HTMLElement>('#account-dropdown')!;
+  const logout = menu.querySelector<HTMLButtonElement>('[data-account-logout]')!;
+  const logoutLabel = menu.querySelector<HTMLElement>('[data-logout-label]')!;
+  const feedback = menu.querySelector<HTMLElement>('[data-account-feedback]')!;
+
+  function setOpen(open: boolean, restoreFocus = false) {
+    dropdown.hidden = !open;
+    trigger.setAttribute('aria-expanded', String(open));
+    if (restoreFocus) trigger.focus();
+  }
+  trigger.addEventListener('click', () => setOpen(dropdown.hidden));
+  trigger.addEventListener('keydown', event => {
+    if (event.key !== 'ArrowDown') return;
+    event.preventDefault(); setOpen(true);
+    dropdown.querySelector<HTMLAnchorElement>('a')!.focus();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !dropdown.hidden) { event.preventDefault(); setOpen(false, true); }
+  });
+  document.addEventListener('click', event => { if (!menu.contains(event.target as Node)) setOpen(false); });
+  menu.addEventListener('focusout', event => { if (!menu.contains(event.relatedTarget as Node | null)) setOpen(false); });
+  logout.addEventListener('click', async () => {
+    logout.disabled = true; logoutLabel.textContent = 'Wylogowywanie…'; feedback.hidden = true;
+    try {
+      const client = authClient();
+      const { error } = await client.auth.signOut({ scope: 'local' });
+      // A network failure can still leave this browser successfully signed out.
+      if (error && (await client.auth.getSession()).data.session) throw error;
+      localStorage.removeItem('sellio-product-view');
+      localStorage.removeItem('sellio-inventory-sync');
+      location.replace('/logowanie');
+    } catch {
+      feedback.textContent = 'Nie udało się wylogować. Spróbuj ponownie.'; feedback.hidden = false;
+      logout.disabled = false; logoutLabel.textContent = 'Wyloguj się';
+    }
+  });
+  trigger.disabled = false;
+</script>

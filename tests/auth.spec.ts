@@ -10,7 +10,12 @@ const store = { id: 'store-row', external_id: 'wp_test', name: 'Test store', sit
 async function setup(page: Page, expired = false, legacy = false) {
   const saved: Record<string, unknown> = session(expired);
   if (legacy) delete saved.expires_at;
-  await page.addInitScript(saved => { if (!localStorage.getItem('sellio-auth-session')) localStorage.setItem('sellio-auth-session', JSON.stringify(saved)); }, saved);
+  await page.addInitScript(saved => {
+    if (!sessionStorage.getItem('test-session-seeded')) {
+      localStorage.setItem('sellio-auth-session', JSON.stringify(saved));
+      sessionStorage.setItem('test-session-seeded', 'true');
+    }
+  }, saved);
   await page.route('https://sellio-test.supabase.co/auth/v1/user', route => route.fulfill({ json: user }));
   await page.route('https://sellio-test.supabase.co/rest/v1/stores?**', route => route.fulfill({ json: [store] }));
   await page.route('**/v1/admin/wordpress/stores/wp_test/products?**', route => route.fulfill({ json: { products: [{ id: '1', name: 'Persisted product', stock_quantity: 2 }], total: 1 } }));
@@ -97,5 +102,53 @@ test('redirects to login only when the refresh token is revoked', async ({ page 
   await setup(page, true);
   await page.route('https://sellio-test.supabase.co/auth/v1/token?grant_type=refresh_token', route => route.fulfill({ status: 400, json: { error_code: 'refresh_token_not_found', msg: 'Invalid Refresh Token' } }));
   await page.goto('/admin/produkty/lista');
+  await expect(page).toHaveURL('/logowanie');
+});
+
+test('account menu supports keyboard, outside click and mobile layout', async ({ page }) => {
+  await setup(page);
+  await page.goto('/admin');
+  const trigger = page.getByRole('button', { name: 'Menu konta', exact: true });
+  const dropdown = page.locator('#account-dropdown');
+  const settings = dropdown.getByRole('link', { name: 'Ustawienia konta' });
+  await expect(dropdown).toBeHidden();
+  await trigger.focus(); await page.keyboard.press('Enter');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  await page.keyboard.press('Tab'); await expect(settings).toBeFocused();
+  await page.keyboard.press('Escape'); await expect(trigger).toBeFocused();
+  await expect(dropdown).toBeHidden();
+  await page.keyboard.press('ArrowDown'); await expect(settings).toBeFocused();
+  await page.keyboard.press('Tab'); await page.keyboard.press('Tab');
+  await expect(dropdown.getByRole('button', { name: 'Wyloguj się' })).toBeFocused();
+  await page.keyboard.press('Tab'); await expect(dropdown).toBeHidden();
+  await trigger.click(); await page.locator('main h1').click(); await expect(dropdown).toBeHidden();
+  for (const width of [320, 390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await trigger.click();
+    const box = await dropdown.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0); expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+    await page.screenshot({ path: `test-results/account-menu-${width}.png` });
+    await trigger.click();
+  }
+  await trigger.click(); await settings.click();
+  await expect(page).toHaveURL('/admin/ustawienia');
+  await trigger.click(); await dropdown.getByRole('link', { name: 'Informacje', exact: true }).click();
+  await expect(page).toHaveURL('/admin/pomoc-i-kontakt');
+});
+
+test('account logout clears the session and prevents returning to the panel', async ({ page }) => {
+  await setup(page);
+  let scope = '';
+  await page.route('https://sellio-test.supabase.co/auth/v1/logout?**', route => {
+    scope = new URL(route.request().url()).searchParams.get('scope') || '';
+    return route.fulfill({ status: 204 });
+  });
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Menu konta', exact: true }).click();
+  await page.getByRole('button', { name: 'Wyloguj się', exact: true }).click();
+  await expect(page).toHaveURL('/logowanie');
+  expect(scope).toBe('local');
+  expect(await page.evaluate(() => localStorage.getItem('sellio-auth-session'))).toBeNull();
+  await page.goto('/admin');
   await expect(page).toHaveURL('/logowanie');
 });
