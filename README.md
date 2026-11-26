@@ -30,7 +30,11 @@ Backend udostępnia dokładnie kontrakt wymagany przez wtyczkę: `GET /v1/connec
 
 Panel i endpointy integracji mogą działać na tej samej stronie Netlify. Katalog `netlify/functions` zawiera funkcje dla `/v1/connector/*` oraz `/v1/admin/*`, a trwałe dane połączeń i zdarzeń są przechowywane w site-wide Netlify Blobs.
 
-W Netlify otwórz **Project configuration → Environment variables** i dodaj `BACKEND_ADMIN_KEY` jako sekret dostępny dla **Functions**. Następnie uruchom ponowne wdrożenie. W panelu wpisz `https://allsellio.netlify.app` jako adres backendu i tę samą wartość sekretu jako klucz administratora.
+W Netlify ustaw `PUBLIC_SUPABASE_URL` oraz `PUBLIC_SUPABASE_PUBLISHABLE_KEY` dla **Builds i Functions**, a następnie uruchom ponowne wdrożenie. Panel i funkcje administracyjne używają sesji użytkownika Supabase; `BACKEND_ADMIN_KEY` dotyczy osobnego backendu lokalnego. W panelu wpisz `https://allsellio.netlify.app` jako adres backendu.
+
+Sesja jest trwale zapisywana w przeglądarce i automatycznie odnawiana przez klienta Supabase. Istniejące sesje poprzedniego formularza logowania są zachowane, jeśli ich refresh token nadal jest ważny. Po HTTP 401 panel odnawia sesję i ponawia żądanie jeden raz. Cofnięta sesja wymaga logowania; awaria sieci nie usuwa danych integracji.
+
+Połączenia i zasady synchronizacji są zapisywane w tabeli `stores` w Supabase z ograniczeniem dostępu do organizacji. Nowe połączenie jest potwierdzane dopiero po zapisie w bazie. Jeśli wcześniejszy zapis z przeglądarki nie doszedł do skutku, panel przywraca rejestr połączeń należących do zalogowanego użytkownika z trwałego magazynu Netlify. Tokeny katalogu, produkty i zdarzenia pozostają w trwałym Netlify Blobs. Import może korzystać z zapisanego tokenu bez ponownego wklejania. Nowa migracja schematu nie jest wymagana; muszą być zastosowane obie istniejące migracje z `supabase/migrations`.
 
 ## Supabase
 
@@ -59,6 +63,8 @@ Landing page: http://localhost:4321/ — strona prezentująca aplikację i prowa
 npm run check
 npm run build
 npx playwright test
+npm run test:auth
+npm run test:admin-api
 ```
 
 Testy przeglądarkowe wymagają Chromium (`npx playwright install chromium`). Sprawdzają wszystkie pozycje nowego menu i zachowane starsze adresy, odświeżanie, aktywne menu, pusty pulpit, brak aktywnych funkcji modułów, rozwijanie podmenu klawiaturą, mobilną nawigację oraz brak poziomego przepełnienia w pięciu szerokościach. Projekt nie ma osobnej konfiguracji lint.

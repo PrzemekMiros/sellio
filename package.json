@@ -9,11 +9,14 @@
     "build": "astro build",
     "preview": "astro preview --host 0.0.0.0",
     "check": "astro check",
-    "test": "playwright test"
+    "test": "playwright test",
+    "test:auth": "playwright test --config playwright.auth.config.ts",
+    "test:admin-api": "node --experimental-strip-types --experimental-test-module-mocks --test tests/admin-api.test.ts"
   },
   "dependencies": {
     "@netlify/blobs": "^11.1.9",
     "@netlify/functions": "^6.1.1",
+    "@supabase/supabase-js": "^2.119.2",
     "astro": "^7.4.13"
   },
   "devDependencies": {

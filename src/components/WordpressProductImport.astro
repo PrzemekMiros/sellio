@@ -2,12 +2,12 @@
 import Icon from './Icon.astro';
 ---
 <section class="wordpress-import" aria-labelledby="wordpress-import-title">
-  <div><span class="eyebrow">KATALOG PRODUKTÓW</span><h2 id="wordpress-import-title">Zaimportuj produkty z WooCommerce</h2><p>W WordPress kliknij „Wygeneruj/rotuj token katalogu”, skopiuj jednorazowy token i wklej go poniżej razem z ID sklepu widocznym w ustawieniach wtyczki.</p></div>
+  <div><span class="eyebrow">KATALOG PRODUKTÓW</span><h2 id="wordpress-import-title">Zaimportuj produkty z WooCommerce</h2><p>Dane zapisanego połączenia są pobierane z Twojego konta. Token wpisz tylko wtedy, gdy chcesz zmienić dostęp do katalogu.</p></div>
   <form class="integration-form" data-import-form>
     <label>Adres backendu<input name="backend_url" type="url" value="https://allsellio.netlify.app" required /></label>
     <label>ID sklepu<input name="store_id" placeholder="wp_…" required /></label>
     <label>Adres sklepu WordPress<input name="catalog_url" type="url" value="https://automatelab.pl" required /></label>
-    <label class="full-width">Token katalogu WordPress<input name="catalog_token" type="password" autocomplete="off" required /></label>
+    <label class="full-width">Token katalogu WordPress<input name="catalog_token" type="password" autocomplete="off" placeholder="Użyj tokenu zapisanego na serwerze" /></label>
     <label class="full-width import-mode"><span>Zakres importu</span><select name="mode"><option value="incremental">Tylko nowe i zmienione produkty</option><option value="full">Cały katalog produktów</option></select><small>Przy pierwszym imporcie zostanie pobrany cały katalog.</small></label>
     <button class="button button-primary" type="submit"><Icon name="box" size={16} />Importuj nowe produkty</button>
   </form>
@@ -25,32 +25,52 @@ import Icon from './Icon.astro';
   <p class="integration-feedback" role="status" data-sync-feedback></p>
 </section>
 <script>
+  import { authenticatedFetch } from "../lib/auth";
+  import { loadWordpressStore, saveInventorySettings } from "../lib/wordpress";
   const importForm = document.querySelector<HTMLFormElement>('[data-import-form]')!;
   const importFeedback = document.querySelector<HTMLElement>('[data-import-feedback]')!;
-  const authorization = () => {
-    const session = JSON.parse(localStorage.getItem('sellio-auth-session') || 'null');
-    if (!session?.access_token) throw new Error('Zaloguj się ponownie, aby importować produkty.');
-    return { Authorization: `Bearer ${session.access_token}` };
-  };
   importForm.addEventListener('submit', async event => {
     event.preventDefault(); importFeedback.textContent = 'Importuję katalog produktów…';
     const input = new FormData(importForm); const url = String(input.get('backend_url')).trim().replace(/\/$/, '');
     try {
-      const response = await fetch(`${url}/v1/admin/wordpress/stores/${String(input.get('store_id')).trim()}/catalog/import`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authorization() }, body: JSON.stringify({ catalog_url: String(input.get('catalog_url')).trim(), catalog_token: String(input.get('catalog_token')).trim(), mode: String(input.get('mode')) }) });
+      const response = await authenticatedFetch(`${url}/v1/admin/wordpress/stores/${String(input.get('store_id')).trim()}/catalog/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ catalog_url: String(input.get('catalog_url')).trim(), catalog_token: String(input.get('catalog_token')).trim(), mode: String(input.get('mode')) }) });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Import katalogu nie powiódł się.');
-      localStorage.setItem('sellio-product-view', JSON.stringify({ backend_url: input.get('backend_url'), store_id: input.get('store_id') }));
       importFeedback.textContent = data.mode === 'incremental' ? `Zaimportowano ${data.imported} nowych lub zmienionych produktów. Lista produktów została odświeżona.` : `Zaimportowano ${data.imported} produktów w ${data.pages} partiach. Lista produktów będzie od teraz ładować się automatycznie.`;
     } catch (error) { importFeedback.textContent = error instanceof Error ? error.message : 'Wystąpił nieznany błąd.'; }
   });
   const syncForm = document.querySelector<HTMLFormElement>('[data-sync-form]')!;
   const syncFeedback = document.querySelector<HTMLElement>('[data-sync-feedback]')!;
-  const syncKey = 'sellio-inventory-sync';
-  try {
-    const saved = JSON.parse(localStorage.getItem(syncKey) || 'null');
-    if (saved) for (const [name, value] of Object.entries(saved)) { const input = syncForm.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null; if (input) input instanceof HTMLInputElement && input.type === 'checkbox' ? input.checked = Boolean(value) : input.value = String(value); }
-  } catch {}
-  syncForm.addEventListener('submit', event => {
-    event.preventDefault(); const values = new FormData(syncForm); const settings = { inventory_source: values.get('inventory_source'), sync_stock: values.has('sync_stock'), sync_prices: values.has('sync_prices'), protect_woocommerce: values.has('protect_woocommerce') };
-    localStorage.setItem(syncKey, JSON.stringify(settings)); syncFeedback.textContent = 'Zasady zapisane. Synchronizacja zostanie uruchomiona po połączeniu konta Allegro.';
+  const applySettings = (settings: Record<string, unknown>) => {
+    for (const [name, value] of Object.entries(settings)) {
+      const input = syncForm.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null;
+      if (input) input instanceof HTMLInputElement && input.type === 'checkbox' ? input.checked = Boolean(value) : input.value = String(value);
+    }
+  };
+  const connectionReady = loadWordpressStore();
+  connectionReady.then(store => {
+    if (!store) return;
+    for (const [name, value] of Object.entries({ backend_url: store.credentials.backend_url, store_id: store.external_id, catalog_url: store.site_url })) {
+      (importForm.elements.namedItem(name) as HTMLInputElement).value = value || '';
+    }
+    if (store.credentials.inventory_sync) applySettings(store.credentials.inventory_sync);
+    else {
+      // Existing local preferences can be reviewed and saved to the account explicitly.
+      try { const legacy = JSON.parse(localStorage.getItem('sellio-inventory-sync') || 'null'); if (legacy) { applySettings(legacy); syncFeedback.textContent = 'Odczytano poprzednie ustawienia. Zapisz je, aby zachować je na swoim koncie.'; } } catch {}
+    }
+  }).catch(error => { importFeedback.textContent = error instanceof Error ? error.message : 'Nie udało się odczytać integracji.'; });
+  syncForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = syncForm.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    button.disabled = true; syncFeedback.textContent = 'Zapisuję zasady…';
+    try {
+      const store = await loadWordpressStore();
+      if (!store) throw new Error('Najpierw skonfiguruj połączenie WooCommerce.');
+      const values = new FormData(syncForm);
+      const settings = { inventory_source: values.get('inventory_source'), sync_stock: values.has('sync_stock'), sync_prices: values.has('sync_prices'), protect_woocommerce: values.has('protect_woocommerce') };
+      await saveInventorySettings(store, settings);
+      localStorage.removeItem('sellio-inventory-sync');
+      syncFeedback.textContent = 'Zasady zapisane w bazie danych. Synchronizacja zostanie uruchomiona po połączeniu konta Allegro.';
+    } catch (error) { syncFeedback.textContent = error instanceof Error ? error.message : 'Nie udało się zapisać zasad.'; }
+    finally { button.disabled = false; }
   });
 </script>

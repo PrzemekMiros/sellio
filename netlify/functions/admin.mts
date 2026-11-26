@@ -26,6 +26,28 @@ async function findOwned(id: string, userId: string) {
 }
 const editableProductFields = ['name', 'sku', 'regular_price', 'sale_price', 'price', 'stock_quantity', 'status', 'description', 'short_description'] as const;
 
+async function registerConnection(request: Request, userId: string, id: string, connection: Connection) {
+  const base = (process.env.PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '').replace(/\/$/, '');
+  const headers = {
+    apikey: process.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY ?? '',
+    Authorization: request.headers.get('authorization') ?? '',
+    'Content-Type': 'application/json',
+  };
+  const query = async (path: string, init: RequestInit = {}) => {
+    const response = await fetch(`${base}/rest/v1/${path}`, { ...init, headers: { ...headers, ...init.headers }, signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) throw new Error('Nie udało się zapisać integracji w bazie danych. Spróbuj ponownie.');
+    return response;
+  };
+  const existing = await (await query(`stores?provider=eq.woocommerce&external_id=eq.${encodeURIComponent(id)}&select=id&limit=1`)).json();
+  if (existing.length) return;
+  const memberships = await (await query(`organization_members?user_id=eq.${encodeURIComponent(userId)}&select=organization_id&order=created_at.asc&limit=1`)).json();
+  if (!memberships[0]) throw new Error('Nie znaleziono firmy dla tego konta.');
+  await query('stores?on_conflict=organization_id,provider,external_id', {
+    method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
+    body: JSON.stringify({ organization_id: memberships[0].organization_id, provider: 'woocommerce', external_id: id, name: connection.metadata.name, site_url: connection.metadata.site_url, credentials: { backend_url: new URL(request.url).origin } }),
+  });
+}
+
 function productUpdate(input: Record<string, unknown>) {
   const update: Record<string, unknown> = {};
   for (const field of editableProductFields) {
@@ -47,15 +69,20 @@ function productUpdate(input: Record<string, unknown>) {
 
 async function importCatalog(id: string, input: Record<string, unknown>, userId: string) {
   const current = await findOwned(id, userId); if (!current) return json({ error: 'Store not found' }, 404);
-  const siteUrl = validUrl(input.catalog_url);
-  if (typeof input.catalog_token !== 'string' || !input.catalog_token) return json({ error: 'Token katalogu jest wymagany.' }, 400);
+  let siteUrl: string;
+  try { siteUrl = validUrl(input.catalog_url || current.metadata.site_url); }
+  catch (error) { return json({ error: error instanceof Error ? error.message : 'Nieprawidłowy adres sklepu.' }, 400); }
+  const explicitToken = typeof input.catalog_token === 'string' && input.catalog_token ? input.catalog_token : '';
+  if (!explicitToken && siteUrl !== current.metadata.site_url) return json({ error: 'Dla innego adresu sklepu podaj nowy token katalogu.' }, 400);
+  const catalogToken = explicitToken || String(current.metadata.catalog_token ?? '');
+  if (!catalogToken) return json({ error: 'Token katalogu jest wymagany.' }, 400);
   const incremental = input.mode === 'incremental' && typeof current.metadata.catalog_imported_at === 'string';
   const modifiedAfter = incremental ? String(current.metadata.catalog_imported_at) : '';
   let imported = 0, page = 1, pages = 1;
   try {
     while (page <= pages && page <= 100) {
       const catalogUrl = new URL(`${siteUrl}/wp-json/sellio/v1/products`); catalogUrl.searchParams.set('page', String(page)); catalogUrl.searchParams.set('per_page', '100'); if (modifiedAfter) catalogUrl.searchParams.set('modified_after', modifiedAfter);
-      const response = await fetch(catalogUrl, { headers: { 'X-Sellio-Catalog-Token': input.catalog_token }, signal: AbortSignal.timeout(15_000) });
+      const response = await fetch(catalogUrl, { headers: { 'X-Sellio-Catalog-Token': catalogToken }, signal: AbortSignal.timeout(15_000) });
       const products = await response.json().catch(() => null);
       if (!response.ok) {
         const retryAfter = response.headers.get('retry-after');
@@ -72,7 +99,7 @@ async function importCatalog(id: string, input: Record<string, unknown>, userId:
       imported += products.length; page++;
     }
     if (page <= pages) throw new Error('Katalog jest zbyt duży dla jednorazowego importu.');
-    await blobs.setJSON(`store:${id}`, { ...current, metadata: { ...current.metadata, catalog_status: 'imported', catalog_imported_at: new Date().toISOString(), product_count: imported }, updated_at: new Date().toISOString() });
+    await blobs.setJSON(`store:${id}`, { ...current, metadata: { ...current.metadata, ...(siteUrl === current.metadata.site_url ? { catalog_token: catalogToken } : {}), catalog_status: 'imported', catalog_imported_at: new Date().toISOString(), product_count: imported }, updated_at: new Date().toISOString() });
     return json({ imported, pages: page - 1, mode: incremental ? 'incremental' : 'full' });
   } catch (error) { return json({ error: error instanceof Error ? error.message : 'Catalog unavailable' }, 502); }
 }
@@ -84,6 +111,19 @@ export default async (request: Request) => {
   const user = await currentUser(request);
   if (!user) return json({ error: 'Zaloguj się ponownie, aby zarządzać integracjami.' }, 401);
   const url = new URL(request.url);
+  if (request.method === 'GET' && url.pathname === '/v1/admin/wordpress/stores') {
+    try {
+      const entries = await blobs.list({ prefix: 'store:' });
+      let restored = 0;
+      for (const entry of entries.blobs) {
+        const connection = await find(entry.key.slice('store:'.length));
+        if (connection?.owner_id !== user.id) continue;
+        await registerConnection(request, user.id, entry.key.slice('store:'.length), connection);
+        restored++;
+      }
+      return json({ restored });
+    } catch (error) { return json({ error: error instanceof Error ? error.message : 'Nie udało się przywrócić integracji.' }, 503); }
+  }
   if (request.method === 'POST' && url.pathname === '/v1/admin/wordpress/stores') {
     let input: Record<string, unknown>; try { input = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
     try {
@@ -95,7 +135,10 @@ export default async (request: Request) => {
       if (!catalogResponse.ok) throw new Error(`Katalog WordPress zwrócił HTTP ${catalogResponse.status}. Sprawdź token katalogu.`);
       if (!catalog || catalog.contract_version !== '1') throw new Error('Katalog WordPress zwrócił nieprawidłowy format odpowiedzi.');
       const id = `wp_${randomBytes(9).toString('hex')}`, token = randomBytes(32).toString('base64url'), now = new Date().toISOString();
-      await blobs.setJSON(`store:${id}`, { secret_hash: hash(token), owner_id: user.id, metadata: { name: input.name.trim().slice(0, 100), site_url: siteUrl, catalog_token: input.catalog_token, catalog_status: 'connected', catalog_checked_at: now, catalog }, created_at: now, updated_at: now });
+      const connection = { secret_hash: hash(token), owner_id: user.id, metadata: { name: input.name.trim().slice(0, 100), site_url: siteUrl, catalog_token: input.catalog_token, catalog_status: 'connected', catalog_checked_at: now, catalog }, created_at: now, updated_at: now };
+      await blobs.setJSON(`store:${id}`, connection);
+      try { await registerConnection(request, user.id, id, connection); }
+      catch (error) { await blobs.delete(`store:${id}`); throw error; }
       return json({ store_id: id, api_token: token }, 201);
     } catch (error) { return json({ error: error instanceof Error ? error.message : 'Invalid request' }, 400); }
   }

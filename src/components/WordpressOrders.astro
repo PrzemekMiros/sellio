@@ -1,40 +1,29 @@
----
-const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL ?? '';
-const supabaseKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
----
-<section class="wordpress-orders" data-supabase-url={supabaseUrl} data-supabase-key={supabaseKey} aria-labelledby="wordpress-orders-title">
+<section class="wordpress-orders" aria-labelledby="wordpress-orders-title">
   <div><span class="eyebrow">ZAMÓWIENIA WOO COMMERCE</span><h2 id="wordpress-orders-title">Lista zamówień</h2><p>Nowe zamówienia są przekazywane automatycznie przez Sellio Connector.</p></div>
   <div class="products-toolbar"><button class="button button-primary" type="button" data-orders-refresh>Odśwież zamówienia</button><a href="/admin/integracje" class="products-integration-link">Ustawienia integracji</a></div>
   <p class="integration-feedback" role="status" data-orders-feedback></p>
   <div class="orders-result" data-orders-result hidden><p data-orders-count></p><div class="orders-table-wrap"><table><thead><tr><th>Numer</th><th>Data</th><th>Klient</th><th>Kwota</th><th>Płatność</th><th>Status</th><th>Pozycje</th><th>Akcja</th></tr></thead><tbody data-orders-body></tbody></table></div></div>
 </section>
 <script>
+  import { authenticatedFetch } from "../lib/auth";
+  import { loadWordpressStore } from "../lib/wordpress";
   const section = document.querySelector<HTMLElement>('.wordpress-orders')!;
   const feedback = section.querySelector<HTMLElement>('[data-orders-feedback]')!;
   const result = section.querySelector<HTMLElement>('[data-orders-result]')!;
   const body = section.querySelector<HTMLTableSectionElement>('[data-orders-body]')!;
   const count = section.querySelector<HTMLElement>('[data-orders-count]')!;
   const refresh = section.querySelector<HTMLButtonElement>('[data-orders-refresh]')!;
-  const supabaseUrl = section.dataset.supabaseUrl ?? '';
-  const supabaseKey = section.dataset.supabaseKey ?? '';
-  const session = () => JSON.parse(localStorage.getItem('sellio-auth-session') || 'null');
-  const authHeaders = () => {
-    const current = session(); if (!current?.access_token) throw new Error('Zaloguj się ponownie, aby pobrać zamówienia.');
-    return { Authorization: `Bearer ${current.access_token}` };
-  };
   const cell = (value: unknown) => { const element = document.createElement('td'); element.textContent = value === null || value === undefined || value === '' ? '—' : String(value); return element; };
   const displayDate = (value: unknown) => { if (!value) return '—'; const date = new Date(String(value)); return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short' }); };
   async function connection() {
-    const current = session(); if (!current?.access_token || !supabaseUrl || !supabaseKey) return null;
-    const response = await fetch(`${supabaseUrl}/rest/v1/stores?provider=eq.woocommerce&select=external_id,credentials&order=updated_at.desc&limit=1`, { headers: { apikey: supabaseKey, Authorization: `Bearer ${current.access_token}` } });
-    const stores = await response.json(); const store = response.ok ? stores[0] : null;
-    return store?.external_id && store.credentials?.backend_url ? { storeId: store.external_id, backendUrl: store.credentials.backend_url } : null;
+    const store = await loadWordpressStore();
+    return store ? { storeId: store.external_id, backendUrl: store.credentials.backend_url } : null;
   }
   const statuses = [['pending', 'Oczekuje'], ['on-hold', 'Wstrzymane'], ['processing', 'W realizacji'], ['completed', 'Zrealizowane'], ['cancelled', 'Anulowane'], ['refunded', 'Zwrócone'], ['failed', 'Nieudane']];
   async function updateStatus(config: { backendUrl: string; storeId: string }, order: Record<string, any>, status: string, button: HTMLButtonElement) {
     button.disabled = true; feedback.textContent = 'Zapisuję status w WooCommerce…';
     try {
-      const response = await fetch(`${String(config.backendUrl).replace(/\/$/, '')}/v1/admin/wordpress/stores/${encodeURIComponent(config.storeId)}/orders/${encodeURIComponent(order.id)}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ status }) });
+      const response = await authenticatedFetch(`${String(config.backendUrl).replace(/\/$/, '')}/v1/admin/wordpress/stores/${encodeURIComponent(config.storeId)}/orders/${encodeURIComponent(order.id)}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Nie udało się zapisać statusu.');
       order.status = data.order?.status || status; feedback.textContent = 'Status zamówienia został zmieniony w WooCommerce.';
     } catch (error) { feedback.textContent = error instanceof Error ? error.message : 'Nie udało się zapisać statusu.'; } finally { button.disabled = false; }
@@ -54,7 +43,7 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
     result.hidden = true; feedback.textContent = 'Pobieram zamówienia…';
     try {
       const config = await connection(); if (!config) throw new Error('Najpierw skonfiguruj połączenie WooCommerce w zakładce Integracje.');
-      const response = await fetch(`${String(config.backendUrl).replace(/\/$/, '')}/v1/admin/wordpress/stores/${encodeURIComponent(config.storeId)}/orders`, { headers: authHeaders() });
+      const response = await authenticatedFetch(`${String(config.backendUrl).replace(/\/$/, '')}/v1/admin/wordpress/stores/${encodeURIComponent(config.storeId)}/orders`, {});
       const data = await response.json(); if (!response.ok) throw new Error(data.error || `Nie udało się pobrać zamówień (HTTP ${response.status}).`);
       render(data.orders, config); count.textContent = `Wyświetlono ${data.orders.length} z ${data.total} zamówień.`; result.hidden = false;
       feedback.textContent = data.orders.length ? '' : 'Brak odebranych zamówień. W WordPress: WooCommerce → Sellio Connector wybierz „Wyślij ostatnie 30 dni”.';

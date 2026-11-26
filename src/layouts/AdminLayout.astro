@@ -8,20 +8,12 @@ import { type Module } from '../config/modules';
 import SidebarNav from '../components/SidebarNav.astro';
 interface Props { module: Module; }
 const { module } = Astro.props;
-const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL ?? '';
-const supabaseKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
 ---
 <!doctype html>
 <html lang="pl" data-theme="light">
   <head><meta charset="UTF-8" />
     <script is:inline>
       try { document.documentElement.dataset.theme = localStorage.getItem('sellio-admin-theme') === 'dark' ? 'dark' : 'light'; } catch {}
-    </script>
-    <script is:inline>
-      try {
-        const session = JSON.parse(localStorage.getItem('sellio-auth-session') || 'null');
-        if (!session?.access_token) location.replace('/logowanie');
-      } catch { location.replace('/logowanie'); }
     </script>
     <meta name="viewport" content="width=device-width" /><meta name="description" content="Sellio — panel obsługi sprzedaży e-commerce. Prototyp aplikacji." /><title>{module.name} · Sellio</title><link rel="icon" type="image/svg+xml" href="/favicon.svg" /></head>
   <body>
@@ -74,22 +66,25 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
       mobile.addEventListener('change', () => toggleMenu(false, false));
       sidebar.inert = mobile.matches;
     </script>
-    <script define:vars={{ supabaseUrl, supabaseKey }}>
-      const avatar = document.querySelector('[data-user-avatar]');
-      const nameTarget = document.querySelector('[data-user-name]');
-      const session = JSON.parse(localStorage.getItem('sellio-auth-session') || 'null');
-      const initials = name => name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'M';
-      if (avatar && nameTarget && session?.access_token && supabaseUrl && supabaseKey) {
-        fetch(`${supabaseUrl}/auth/v1/user`, { headers: { apikey: supabaseKey, Authorization: `Bearer ${session.access_token}` } })
-          .then(response => response.ok ? response.json() : Promise.reject())
-          .then(user => {
-            const metadata = user.user_metadata || {};
-            const name = metadata.full_name || [metadata.given_name, metadata.family_name].filter(Boolean).join(' ') || user.email || 'Moja przestrzeń';
-            nameTarget.textContent = name; avatar.setAttribute('aria-label', name); avatar.textContent = initials(name);
-            if (metadata.avatar_url || metadata.picture) { const image = document.createElement('img'); image.src = metadata.avatar_url || metadata.picture; image.alt = ''; image.referrerPolicy = 'no-referrer'; avatar.replaceChildren(image); }
-          })
-          .catch(() => {});
+    <script>
+      import { authClient } from '../lib/auth';
+      const avatar = document.querySelector<HTMLElement>('[data-user-avatar]');
+      const nameTarget = document.querySelector<HTMLElement>('[data-user-name]');
+      async function loadAccount() {
+        const client = authClient();
+        const { data, error } = await client.auth.getSession();
+        if (error) throw error;
+        if (!data.session) { location.replace('/logowanie'); return; }
+        const { data: account, error: accountError } = await client.auth.getUser();
+        if (accountError || !account.user || !avatar || !nameTarget) return;
+        const user = account.user;
+        const metadata = user.user_metadata || {};
+        const name: string = metadata.full_name || [metadata.given_name, metadata.family_name].filter(Boolean).join(' ') || user.email || 'Moja przestrzeń';
+        nameTarget.textContent = name; avatar.setAttribute('aria-label', name);
+        avatar.textContent = name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'M';
+        if (metadata.avatar_url || metadata.picture) { const image = document.createElement('img'); image.src = metadata.avatar_url || metadata.picture; image.alt = ''; image.referrerPolicy = 'no-referrer'; avatar.replaceChildren(image); }
       }
+      loadAccount().catch(() => { if (nameTarget) nameTarget.textContent = 'Nie udało się odnowić sesji. Odśwież stronę.'; });
     </script>
   </body>
 </html>
