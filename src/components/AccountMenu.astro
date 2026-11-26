@@ -32,13 +32,14 @@ import Icon from './Icon.astro';
 </style>
 
 <script>
-  import { authClient } from '../lib/auth';
+  import { authClient, isLocalPreview } from '../lib/auth';
   const menu = document.querySelector<HTMLElement>('[data-account-menu]')!;
   const trigger = menu.querySelector<HTMLButtonElement>('[data-account-trigger]')!;
   const dropdown = menu.querySelector<HTMLElement>('#account-dropdown')!;
   const logout = menu.querySelector<HTMLButtonElement>('[data-account-logout]')!;
   const logoutLabel = menu.querySelector<HTMLElement>('[data-logout-label]')!;
   const feedback = menu.querySelector<HTMLElement>('[data-account-feedback]')!;
+  if (isLocalPreview()) logoutLabel.textContent = 'Zakończ podgląd';
 
   function setOpen(open: boolean, restoreFocus = false) {
     dropdown.hidden = !open;
@@ -57,6 +58,7 @@ import Icon from './Icon.astro';
   document.addEventListener('click', event => { if (!menu.contains(event.target as Node)) setOpen(false); });
   menu.addEventListener('focusout', event => { if (!menu.contains(event.relatedTarget as Node | null)) setOpen(false); });
   logout.addEventListener('click', async () => {
+    if (isLocalPreview()) { location.assign('/'); return; }
     logout.disabled = true; logoutLabel.textContent = 'Wylogowywanie…'; feedback.hidden = true;
     try {
       const client = authClient();

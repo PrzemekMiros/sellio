@@ -68,10 +68,18 @@ const { module } = Astro.props;
       sidebar.inert = mobile.matches;
     </script>
     <script>
-      import { authClient } from '../lib/auth';
+      import { authClient, isLocalPreview, supabaseUrl, supabaseKey } from '../lib/auth';
       const avatar = document.querySelector<HTMLElement>('[data-user-avatar]');
       const nameTarget = document.querySelector<HTMLElement>('[data-user-name]');
       async function loadAccount() {
+        if (isLocalPreview()) {
+          if (nameTarget) nameTarget.textContent = 'Podgląd lokalny';
+          if (avatar) { avatar.textContent = 'DEV'; avatar.setAttribute('aria-label', 'Podgląd lokalny'); }
+          const badge = document.querySelector<HTMLElement>('.prototype-badge');
+          if (badge) { badge.textContent = 'Tryb lokalny · dane testowe'; badge.title = 'Zmiany nie są wysyłane na produkcję.'; }
+          return;
+        }
+        if (!supabaseUrl || !supabaseKey) { location.replace('/logowanie'); return; }
         const client = authClient();
         const { data, error } = await client.auth.getSession();
         if (error) throw error;

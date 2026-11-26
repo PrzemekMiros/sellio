@@ -1,11 +1,45 @@
+---
+import '../styles/product-editor.css';
+---
 <section class="wordpress-orders" aria-labelledby="wordpress-orders-title">
   <div><span class="eyebrow">ZAMÓWIENIA WOO COMMERCE</span><h2 id="wordpress-orders-title">Lista zamówień</h2><p>Nowe zamówienia są przekazywane automatycznie przez Sellio Connector.</p></div>
   <div class="products-toolbar"><button class="button button-primary" type="button" data-orders-refresh>Odśwież zamówienia</button><a href="/admin/integracje" class="products-integration-link">Ustawienia integracji</a></div>
   <p class="integration-feedback" role="status" data-orders-feedback></p>
   <div class="orders-result" data-orders-result hidden><p data-orders-count></p><div class="orders-table-wrap"><table><thead><tr><th>Numer</th><th>Data</th><th>Klient</th><th>Kwota</th><th>Płatność</th><th>Status</th><th>Pozycje</th><th>Akcja</th></tr></thead><tbody data-orders-body></tbody></table></div></div>
 </section>
+<dialog class="product-editor order-details" data-order-dialog aria-labelledby="order-details-title">
+  <form method="dialog" class="product-editor-header"><div><span class="eyebrow">SZCZEGÓŁY ZAMÓWIENIA</span><h2 id="order-details-title" data-order-title></h2></div><button class="icon-button" aria-label="Zamknij zamówienie">×</button></form>
+  <div class="product-editor-content">
+    <dl class="product-editor-details" data-order-summary></dl>
+    <div class="order-addresses">
+      <section><h3>Dane klienta i rozliczeniowe</h3><p data-order-billing></p><p data-order-contact></p></section>
+      <section><h3>Adres dostawy</h3><p data-order-shipping></p></section>
+    </div>
+    <h3>Pozycje zamówienia</h3>
+    <div class="orders-table-wrap"><table><thead><tr><th>Produkt</th><th>SKU</th><th>Wariant</th><th>Ilość</th><th>Wartość netto</th><th>Podatek</th></tr></thead><tbody data-order-items></tbody></table></div>
+    <p data-order-empty hidden>Brak przesłanych pozycji zamówienia.</p>
+    <dl class="product-editor-details" data-order-totals></dl>
+  </div>
+  <form class="product-editor-footer order-status-form" data-order-status-form>
+    <label for="order-detail-status">Status zamówienia<select id="order-detail-status" class="order-status-select" required></select></label>
+    <button class="button" type="submit" data-order-save>Zapisz status</button>
+    <p class="integration-feedback" role="status" data-order-feedback></p>
+  </form>
+</dialog>
+<style>
+  .order-addresses { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 28px; }
+  .order-details h3 { margin: 0 0 14px; font-size: 1rem; }
+  .order-addresses p { white-space: pre-line; overflow-wrap: anywhere; line-height: 1.7; font-size: .875rem; }
+  .order-status-form { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+  .order-status-form label { display: grid; gap: 8px; font-size: .875rem; }
+  .order-status-form select { min-width: 200px; min-height: 42px; }
+  .order-status-form .button { padding: 12px 18px; border: 0; border-radius: 7px; background: var(--accent); color: #211109; font-weight: 600; }
+  .order-status-form .button:disabled { opacity: .6; cursor: wait; }
+  .order-status-form .integration-feedback { flex-basis: 100%; margin: 0; }
+  @media (max-width: 640px) { .order-addresses { grid-template-columns: 1fr; } }
+</style>
 <script>
-  import { authenticatedFetch } from "../lib/auth";
+  import { authenticatedFetch, isLocalPreview } from "../lib/auth";
   import { loadWordpressStore } from "../lib/wordpress";
   const section = document.querySelector<HTMLElement>('.wordpress-orders')!;
   const feedback = section.querySelector<HTMLElement>('[data-orders-feedback]')!;
@@ -13,6 +47,12 @@
   const body = section.querySelector<HTMLTableSectionElement>('[data-orders-body]')!;
   const count = section.querySelector<HTMLElement>('[data-orders-count]')!;
   const refresh = section.querySelector<HTMLButtonElement>('[data-orders-refresh]')!;
+  const dialog = document.querySelector<HTMLDialogElement>('[data-order-dialog]')!;
+  const detailStatus = dialog.querySelector<HTMLSelectElement>('#order-detail-status')!;
+  const detailFeedback = dialog.querySelector<HTMLElement>('[data-order-feedback]')!;
+  const detailSave = dialog.querySelector<HTMLButtonElement>('[data-order-save]')!;
+  let selectedOrder: Record<string, any> | null = null;
+  let selectedConfig: { backendUrl: string; storeId: string } | null = null;
   const cell = (value: unknown) => { const element = document.createElement('td'); element.textContent = value === null || value === undefined || value === '' ? '—' : String(value); return element; };
   const displayDate = (value: unknown) => { if (!value) return '—'; const date = new Date(String(value)); return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short' }); };
   async function connection() {
@@ -20,13 +60,50 @@
     return store ? { storeId: store.external_id, backendUrl: store.credentials.backend_url } : null;
   }
   const statuses = [['pending', 'Oczekuje'], ['on-hold', 'Wstrzymane'], ['processing', 'W realizacji'], ['completed', 'Zrealizowane'], ['cancelled', 'Anulowane'], ['refunded', 'Zwrócone'], ['failed', 'Nieudane']];
-  async function updateStatus(config: { backendUrl: string; storeId: string }, order: Record<string, any>, status: string, button: HTMLButtonElement) {
-    button.disabled = true; feedback.textContent = 'Zapisuję status w WooCommerce…';
+  function statusOptions(select: HTMLSelectElement, status: string) {
+    select.replaceChildren();
+    for (const [value, label] of statuses) { const option = new Option(label, value); select.append(option); }
+    if (status && !statuses.some(([value]) => value === status)) select.append(new Option(`Status ze sklepu: ${status}`, status));
+    select.value = status;
+  }
+  const money = (value: unknown, currency: string) => value === null || value === undefined || value === '' ? '—' : `${value} ${currency}`;
+  function details(selector: string, entries: [string, unknown][]) {
+    const target = dialog.querySelector<HTMLElement>(selector)!; target.replaceChildren();
+    for (const [label, value] of entries) { const item = document.createElement('div'); const dt = document.createElement('dt'); const dd = document.createElement('dd'); dt.textContent = label; dd.textContent = value === null || value === undefined || value === '' ? '—' : String(value); item.append(dt, dd); target.append(item); }
+  }
+  function renderDetails(order: Record<string, any>) {
+    const currency = order.currency || '';
+    dialog.querySelector<HTMLElement>('[data-order-title]')!.textContent = `Zamówienie #${order.number || order.id}`;
+    statusOptions(detailStatus, order.status);
+    details('[data-order-summary]', [['Data zamówienia', displayDate(order.created_at)], ['Status', statuses.find(([value]) => value === order.status)?.[1] || order.status], ['Metoda płatności', order.payment_method], ['Data opłacenia', displayDate(order.date_paid)], ['Sposób dostawy', order.shipping_method], ['Ostatnia zmiana', displayDate(order.modified_at)]]);
+    const address = (value: Record<string, any> | undefined) => value ? [[value.first_name, value.last_name].filter(Boolean).join(' '), value.company, value.address_1, value.address_2, [value.postcode, value.city].filter(Boolean).join(' '), value.state, value.country].filter(Boolean).join('\n') || 'Brak danych adresowych.' : 'Brak danych adresowych.';
+    dialog.querySelector<HTMLElement>('[data-order-billing]')!.textContent = address(order.billing);
+    dialog.querySelector<HTMLElement>('[data-order-shipping]')!.textContent = address(order.shipping);
+    dialog.querySelector<HTMLElement>('[data-order-contact]')!.textContent = [`E-mail: ${order.email || '—'}`, `Telefon: ${order.phone || '—'}`].join('\n');
+    const items = Array.isArray(order.items) ? order.items : [];
+    const itemBody = dialog.querySelector<HTMLElement>('[data-order-items]')!; itemBody.replaceChildren();
+    for (const item of items) { const row = document.createElement('tr'); const attributes = item.variation_attributes && typeof item.variation_attributes === 'object' ? Object.entries(item.variation_attributes).map(([key, value]) => `${key}: ${value}`).join(', ') : ''; row.append(cell(item.name), cell(item.sku), cell(attributes), cell(item.quantity), cell(money(item.total, currency)), cell(money(item.total_tax, currency))); itemBody.append(row); }
+    dialog.querySelector<HTMLElement>('[data-order-empty]')!.hidden = items.length > 0;
+    details('[data-order-totals]', [['Rabat netto', money(order.discount_total, currency)], ['Dostawa netto', money(order.shipping_total, currency)], ['Podatek', money(order.total_tax, currency)], ['Razem brutto', money(order.total, currency)]]);
+  }
+  function openOrder(order: Record<string, any>, config: { backendUrl: string; storeId: string }) {
+    selectedOrder = order; selectedConfig = config; detailFeedback.textContent = ''; renderDetails(order); dialog.showModal();
+    dialog.querySelector<HTMLElement>('.product-editor-content')!.scrollTop = 0;
+  }
+  dialog.querySelector<HTMLFormElement>('[data-order-status-form]')!.addEventListener('submit', async event => {
+    event.preventDefault(); if (!selectedOrder || !selectedConfig) return;
+    await updateStatus(selectedConfig, selectedOrder, detailStatus.value, detailSave, detailFeedback);
+  });
+  async function updateStatus(config: { backendUrl: string; storeId: string }, order: Record<string, any>, status: string, button: HTMLButtonElement, message = feedback) {
+    button.disabled = true; message.textContent = isLocalPreview() ? 'Zapisuję status lokalnie…' : 'Zapisuję status w WooCommerce…';
     try {
       const response = await authenticatedFetch(`${String(config.backendUrl).replace(/\/$/, '')}/v1/admin/wordpress/stores/${encodeURIComponent(config.storeId)}/orders/${encodeURIComponent(order.id)}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Nie udało się zapisać statusu.');
-      order.status = data.order?.status || status; feedback.textContent = 'Status zamówienia został zmieniony w WooCommerce.';
-    } catch (error) { feedback.textContent = error instanceof Error ? error.message : 'Nie udało się zapisać statusu.'; } finally { button.disabled = false; }
+      Object.assign(order, data.order || { status });
+      for (const select of body.querySelectorAll<HTMLSelectElement>('select[data-order-id]')) if (select.dataset.orderId === String(order.id)) select.value = order.status;
+      if (selectedOrder === order) renderDetails(order);
+      message.textContent = isLocalPreview() ? 'Status zapisany lokalnie.' : 'Status zamówienia został zmieniony w WooCommerce.';
+    } catch (error) { message.textContent = error instanceof Error ? error.message : 'Nie udało się zapisać statusu.'; } finally { button.disabled = false; }
   }
   function render(orders: Record<string, any>[], config: { backendUrl: string; storeId: string }) {
     body.replaceChildren();
@@ -34,9 +111,10 @@
       const customer = [order.billing?.first_name, order.billing?.last_name].filter(Boolean).join(' ') || order.email;
       const items = Array.isArray(order.items) ? order.items.reduce((sum: number, item: Record<string, any>) => sum + Number(item.quantity || 0), 0) : 0;
       const statusCell = document.createElement('td'); const select = document.createElement('select'); select.className = 'order-status-select';
-      for (const [value, label] of statuses) { const option = document.createElement('option'); option.value = value; option.textContent = label; option.selected = value === order.status; select.append(option); }
+      select.dataset.orderId = String(order.id); select.setAttribute('aria-label', `Status zamówienia ${order.number || order.id}`); statusOptions(select, order.status);
       statusCell.append(select); const actionCell = document.createElement('td'); const save = document.createElement('button'); save.type = 'button'; save.className = 'table-action'; save.textContent = 'Zapisz'; save.addEventListener('click', () => updateStatus(config, order, select.value, save)); actionCell.append(save);
-      const row = document.createElement('tr'); row.append(cell(`#${order.number || order.id}`), cell(displayDate(order.created_at)), cell(customer), cell(order.total ? `${order.total} ${order.currency || ''}`.trim() : null), cell(order.payment_method), statusCell, cell(items), actionCell); body.append(row);
+      const numberCell = document.createElement('td'); const open = document.createElement('button'); open.type = 'button'; open.className = 'product-name-button'; open.textContent = `#${order.number || order.id}`; open.setAttribute('aria-label', `Otwórz zamówienie ${order.number || order.id}`); open.addEventListener('click', () => openOrder(order, config)); numberCell.append(open);
+      const row = document.createElement('tr'); row.append(numberCell, cell(displayDate(order.created_at)), cell(customer), cell(money(order.total, order.currency || '')), cell(order.payment_method), statusCell, cell(items), actionCell); body.append(row);
     }
   }
   async function load() {

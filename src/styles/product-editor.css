@@ -1,10 +1,16 @@
+.product-editor,
+.product-editor::backdrop { --editor-shell-offset: var(--sidebar-width); }
 .product-editor {
-  width: min(1180px, calc(100vw - 48px));
+  position: fixed;
+  inset: 0 0 0 var(--editor-shell-offset);
+  margin: auto;
+  width: min(1180px, calc(100vw - var(--editor-shell-offset) - 48px));
   height: min(860px, calc(100dvh - 48px));
   max-width: none;
   max-height: calc(100dvh - 48px);
   overflow: hidden;
 }
+.product-editor::backdrop { inset: 0 0 0 var(--editor-shell-offset); }
 .product-editor[open] { display: flex; flex-direction: column; }
 body:has(.product-editor[open]) { overflow: hidden; }
 .product-editor-header { flex-shrink: 0; gap: 20px; }
@@ -38,6 +44,11 @@ body:has(.product-editor[open]) { overflow: hidden; }
 .product-editor-footer { flex-shrink: 0; border-top: 1px solid var(--border); padding: 16px 28px; }
 .product-editor-footer .integration-feedback:empty { display: none; }
 .product-editor-footer .integration-feedback:not(:empty) { margin: 0 0 12px; }
+/* The page shell uses the whole viewport once the sidebar becomes a drawer. */
+@media (max-width: 900px) {
+  .product-editor,
+  .product-editor::backdrop { --editor-shell-offset: 0px; }
+}
 @media (max-width: 640px) {
   .product-editor { width: calc(100vw - 16px); height: calc(100dvh - 16px); max-height: calc(100dvh - 16px); }
   .product-editor-header { padding: 18px; }

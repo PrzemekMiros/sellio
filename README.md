@@ -55,6 +55,10 @@ npm run dev
 
 Panel: http://localhost:4321/admin
 
+Przy `npm run dev` panel na `localhost`, `127.0.0.1` lub `[::1]` otwiera się bez logowania jako **Podgląd lokalny**. Udostępnia osobny produkt testowy do sprawdzania edytora. Zmiany produktu i ustawień są zapisywane wyłącznie w przeglądarce pod kluczem `sellio-local-preview-v1`; rzeczywista sesja i dane Supabase pozostają oddzielone. Podgląd nie wysyła żądań integracyjnych do prawdziwego backendu. „Zakończ podgląd” wraca na stronę główną.
+
+Aby lokalnie sprawdzić prawdziwe logowanie, ustaw `PUBLIC_LOCAL_PREVIEW=false` w `.env.local` i uruchom ponownie serwer. `npm run build` zawsze usuwa tryb podglądu — również przy `PUBLIC_LOCAL_PREVIEW=true` oraz podczas oglądania builda na localhost przez `npm run preview`. Funkcje Netlify i ich kontrola dostępu pozostają bez zmian.
+
 Landing page: http://localhost:4321/ — strona prezentująca aplikację i prowadząca do panelu.
 
 ## Kontrole

@@ -6,7 +6,15 @@ const storageKey = 'sellio-auth-session';
 let client: SupabaseClient | undefined;
 let refreshing: Promise<string> | undefined;
 
+// Vite replaces DEV with false in every production build, regardless of flags or host.
+export function isLocalPreview() {
+  return import.meta.env.DEV && import.meta.env.PUBLIC_LOCAL_PREVIEW !== 'false'
+    && typeof window !== 'undefined'
+    && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
+}
+
 export function authClient() {
+  if (isLocalPreview()) throw new Error('Logowanie jest wyłączone w lokalnym podglądzie.');
   if (client) return client;
   if (!supabaseUrl || !supabaseKey) throw new Error('Brakuje konfiguracji Supabase.');
   // Keep sessions created by the previous REST login, including Google callbacks.
@@ -47,6 +55,7 @@ async function renewedToken(rejectedToken: string) {
 
 /** Refresh before requests and retry one rejected token, preserving body and headers. */
 export async function authenticatedFetch(url: string, init: RequestInit = {}) {
+  if (import.meta.env.DEV && isLocalPreview()) return (await import('./local-preview')).previewRequest(url, init);
   const send = (token: string) => {
     const headers = new Headers(init.headers);
     headers.set('Authorization', `Bearer ${token}`);
@@ -59,6 +68,7 @@ export async function authenticatedFetch(url: string, init: RequestInit = {}) {
 }
 
 export function databaseFetch(path: string, init: RequestInit = {}) {
+  if (import.meta.env.DEV && isLocalPreview()) return import('./local-preview').then(preview => preview.previewDatabase(path, init));
   const headers = new Headers(init.headers);
   headers.set('apikey', supabaseKey);
   headers.set('Content-Type', 'application/json');

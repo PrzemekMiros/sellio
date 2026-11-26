@@ -35,7 +35,7 @@ import '../styles/auth.css';
       <p class="auth-back"><a href="/">← Wróć na stronę główną</a></p>
     </main>
     <script>
-      import { authClient } from '../lib/auth';
+      import { authClient, isLocalPreview } from '../lib/auth';
       const tabs = document.querySelectorAll<HTMLButtonElement>('[data-auth-tab]');
       const panels = document.querySelectorAll<HTMLElement>('[data-auth-panel]');
       const feedback = document.querySelector<HTMLElement>('[data-auth-feedback]')!;
@@ -69,6 +69,7 @@ import '../styles/auth.css';
       }));
       // Also handles the Google callback and restores an existing session.
       async function restoreSession() {
+        if (isLocalPreview()) { location.replace('/admin'); return; }
         const { data, error } = await authClient().auth.getSession();
         if (error) throw error;
         if (data.session) location.replace('/admin');

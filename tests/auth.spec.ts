@@ -152,3 +152,34 @@ test('account logout clears the session and prevents returning to the panel', as
   await page.goto('/admin');
   await expect(page).toHaveURL('/logowanie');
 });
+
+test('order details show received data and update status only after a successful response', async ({ page }) => {
+  await setup(page);
+  const order = { id: '101', number: '101', status: 'processing', total: '123.00', currency: 'PLN', email: 'buyer@example.com', billing: { first_name: 'Test', last_name: 'Buyer' }, items: [{ name: 'Ordered lamp', sku: 'LAMP', quantity: 2, total: '100.00', total_tax: '23.00' }] };
+  await page.route('**/v1/admin/wordpress/stores/wp_test/orders', route => route.fulfill({ json: { orders: [order, { ...order, id: '102', number: '102' }], total: 2 } }));
+  let fail = true;
+  await page.route('**/v1/admin/wordpress/stores/wp_test/orders/101/status', route => {
+    if (fail) return route.fulfill({ status: 502, json: { error: 'Sklep jest niedostępny.' } });
+    order.status = route.request().postDataJSON().status;
+    return route.fulfill({ json: { order: { id: order.id, status: order.status } } });
+  });
+  await page.goto('/admin/zamowienia/lista');
+  await page.getByRole('button', { name: 'Otwórz zamówienie 102', exact: true }).click();
+  await expect(page.getByRole('dialog')).toContainText('Zamówienie #102');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Otwórz zamówienie 101', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('buyer@example.com');
+  await expect(dialog).toContainText('Ordered lamp');
+  await expect(dialog).toContainText('Brak danych adresowych.');
+  await page.locator('#order-detail-status').selectOption('completed');
+  await dialog.getByRole('button', { name: 'Zapisz status' }).click();
+  await expect(dialog.getByRole('status')).toHaveText('Sklep jest niedostępny.');
+  await expect(page.locator('select[data-order-id="101"]')).toHaveValue('processing');
+  fail = false;
+  await dialog.getByRole('button', { name: 'Zapisz status' }).click();
+  await expect(dialog.getByRole('status')).toContainText('został zmieniony w WooCommerce');
+  await expect(page.locator('select[data-order-id="101"]')).toHaveValue('completed');
+  await page.reload();
+  await expect(page.locator('select[data-order-id="101"]')).toHaveValue('completed');
+});
