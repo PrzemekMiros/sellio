@@ -1,0 +1,46 @@
+<div class="page-loading" data-page-loading role="status" aria-live="polite" hidden>
+  <span class="page-loading-bar" aria-hidden="true"></span>
+  <span class="sr-only">Ładowanie…</span>
+</div>
+<style>
+  .page-loading { position: fixed; inset: 0 0 auto 0; height: 3px; z-index: 10000; overflow: hidden; pointer-events: none; background: #ff681f26; }
+  .page-loading[hidden] { display: none; }
+  .page-loading-bar { display: block; width: 40%; height: 100%; background: #ff681f; box-shadow: 0 0 10px #ff681f80; animation: loading-progress 1.2s ease-in-out infinite; }
+  @keyframes loading-progress { from { transform: translateX(-100%); } to { transform: translateX(350%); } }
+  @media (prefers-reduced-motion: reduce) { .page-loading-bar { width: 100%; animation: none; } }
+</style>
+<script is:inline>
+  (() => {
+    let pending = 0;
+    let navigating = false;
+    let timer;
+    const render = () => {
+      const indicator = document.querySelector('[data-page-loading]');
+      if (indicator) indicator.hidden = !(pending > 0 || navigating);
+    };
+    const stopNavigation = () => { navigating = false; clearTimeout(timer); render(); };
+    const startNavigation = () => {
+      navigating = true; render(); clearTimeout(timer);
+      // Restore the indicator if a navigation is cancelled or intercepted elsewhere.
+      timer = setTimeout(stopNavigation, 15000);
+    };
+    window.addEventListener('sellio:loading-start', () => { pending++; render(); });
+    window.addEventListener('sellio:loading-end', () => { pending = Math.max(0, pending - 1); render(); });
+    document.addEventListener('click', event => {
+      if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
+      if (!link || link.hasAttribute('download') || (link.target && link.target !== '_self')) return;
+      const url = new URL(link.href, location.href);
+      if (url.origin !== location.origin || !['http:', 'https:'].includes(url.protocol)) return;
+      if (url.pathname === location.pathname && url.search === location.search) return;
+      queueMicrotask(() => { if (!event.defaultPrevented) startNavigation(); });
+    });
+    window.addEventListener('pageshow', event => { if (event.persisted) pending = 0; stopNavigation(); });
+    // Also compatible with Astro client navigation if it is enabled in the future.
+    document.addEventListener('astro:before-preparation', startNavigation);
+    document.addEventListener('astro:page-load', stopNavigation);
+    if (document.readyState === 'loading') {
+      startNavigation(); document.addEventListener('DOMContentLoaded', stopNavigation, { once: true });
+    }
+  })();
+</script>

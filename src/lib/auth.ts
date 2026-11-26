@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { withLoading } from './loading';
 
 export const supabaseUrl = (import.meta.env.PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '');
 export const supabaseKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
@@ -55,6 +56,7 @@ async function renewedToken(rejectedToken: string) {
 
 /** Refresh before requests and retry one rejected token, preserving body and headers. */
 export async function authenticatedFetch(url: string, init: RequestInit = {}) {
+  return withLoading(async () => {
   if (import.meta.env.DEV && isLocalPreview()) return (await import('./local-preview')).previewRequest(url, init);
   const send = (token: string) => {
     const headers = new Headers(init.headers);
@@ -65,10 +67,11 @@ export async function authenticatedFetch(url: string, init: RequestInit = {}) {
   const response = await send(token);
   if (response.status !== 401) return response;
   return send(await renewedToken(token));
+  });
 }
 
 export function databaseFetch(path: string, init: RequestInit = {}) {
-  if (import.meta.env.DEV && isLocalPreview()) return import('./local-preview').then(preview => preview.previewDatabase(path, init));
+  if (import.meta.env.DEV && isLocalPreview()) return withLoading(() => import('./local-preview').then(preview => preview.previewDatabase(path, init)));
   const headers = new Headers(init.headers);
   headers.set('apikey', supabaseKey);
   headers.set('Content-Type', 'application/json');
