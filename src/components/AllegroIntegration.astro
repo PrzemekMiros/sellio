@@ -1,0 +1,76 @@
+---
+import Icon from './Icon.astro';
+---
+<section class="allegro-connection" id="allegro-connection" aria-labelledby="allegro-connection-title">
+  <header><div><span class="eyebrow">MARKETPLACE · ALLEGRO.PL</span><h2 id="allegro-connection-title">Połączenie z Allegro</h2></div><span class="allegro-connection-state" data-allegro-state>Sprawdzanie…</span></header>
+  <p>Połącz konto firmowe przez bezpieczne logowanie na stronie Allegro. Sellio zapisze połączenie na serwerze i będzie automatycznie odnawiać dostęp.</p>
+  <div class="allegro-account" data-allegro-account hidden><strong data-allegro-login></strong><span data-allegro-checked></span></div>
+  <div class="allegro-setup-note" data-allegro-setup hidden><strong>Aplikacja Sellio wymaga konfiguracji</strong><p>Administrator musi zarejestrować aplikację w Allegro i zapisać jej dane oraz wygenerowany nagłówek User-Agent w ustawieniach serwera. Po konfiguracji przycisk połączenia stanie się dostępny.</p><a href="https://apps.developer.allegro.pl/" target="_blank" rel="noopener noreferrer">Panel aplikacji Allegro ↗</a><p>Adres powrotu dla aplikacji:</p><code>https://allsellio.netlify.app/api/allegro/callback</code></div>
+  <div class="allegro-connection-actions"><button type="button" class="button button-primary" data-allegro-connect disabled><Icon name="plug" size={16} />Połącz konto Allegro</button><button type="button" class="button" data-allegro-check hidden>Sprawdź połączenie</button><button type="button" class="button" data-allegro-refresh>Odśwież status</button><button type="button" class="button" data-allegro-disconnect hidden>Odłącz od Sellio</button></div>
+  <p class="allegro-connection-feedback" data-allegro-feedback role="status" aria-live="polite"></p>
+  <small>Połączenie konta nie publikuje ofert. Formularz wystawiania nadal zapisuje szkice; obsługa publikacji wymaga kolejnego etapu integracji.</small>
+</section>
+<script>
+  import { authenticatedFetch } from '../lib/auth';
+  type Status = { configured: boolean; connected: boolean; reconnect?: boolean; account: { id: string; login: string } | null; checkedAt?: string };
+  const root = document.querySelector<HTMLElement>('#allegro-connection')!;
+  const get = <T extends HTMLElement = HTMLElement>(name: string) => root.querySelector<T>(`[data-allegro-${name}]`)!;
+  let state: Status | null = null, busy = false;
+  const feedback = (message: string) => get('feedback').textContent = message;
+  function render() {
+    get<HTMLButtonElement>('connect').disabled = busy || !state?.configured;
+    get('connect').textContent = state?.connected ? 'Połącz ponownie / zmień konto' : 'Połącz konto Allegro';
+    get<HTMLButtonElement>('refresh').disabled = busy;
+    get<HTMLButtonElement>('check').disabled = busy; get<HTMLButtonElement>('disconnect').disabled = busy;
+    get('check').hidden = !state?.connected || Boolean(state.reconnect); get('disconnect').hidden = !state?.connected;
+    get('setup').hidden = state?.configured !== false; get('account').hidden = !state?.account;
+    get('login').textContent = state?.account ? `Konto: ${state.account.login}` : '';
+    get('checked').textContent = state?.checkedAt ? `Ostatnia poprawna weryfikacja: ${new Date(state.checkedAt).toLocaleString('pl-PL')}` : '';
+    const label = !state ? 'Nie odczytano statusu' : !state.configured ? 'Wymaga konfiguracji' : state.reconnect ? 'Wymaga ponownego połączenia' : state.connected ? 'Połączono' : 'Niepołączone';
+    get('state').textContent = label;
+    document.querySelectorAll<HTMLElement>('[data-allegro-overview-state]').forEach(element => element.textContent = label);
+    document.querySelectorAll<HTMLElement>('[data-allegro-overview-name]').forEach(element => element.textContent = state?.account?.login || 'Połącz konto Allegro');
+  }
+  async function request(path: string, method = 'GET') {
+    const response = await authenticatedFetch(`/v1/admin/allegro/${path}`, { method });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data) throw new Error(data?.error || 'Nie udało się odczytać połączenia Allegro. Spróbuj ponownie.');
+    return data;
+  }
+  async function run(action: () => Promise<void>) {
+    if (busy) return; busy = true; render(); feedback('Łączenie z serwerem…');
+    try { await action(); } catch (error) { feedback((error as Error).message); }
+    finally { busy = false; render(); }
+  }
+  const load = () => run(async () => {
+    state = await request('status');
+    const result = new URL(location.href).searchParams.get('allegro');
+    if (result) { const url = new URL(location.href); url.searchParams.delete('allegro'); history.replaceState(null, '', url); }
+    feedback(result === 'failed' ? 'Nie udało się dokończyć autoryzacji. Rozpocznij połączenie ponownie i zaakceptuj zgodę na stronie Allegro.' : result === 'connected' && state?.connected ? 'Konto Allegro zostało połączone i zapisane na serwerze.' : '');
+  });
+  get('refresh').addEventListener('click', load);
+  get('connect').addEventListener('click', () => run(async () => {
+    const result = await request('connect', 'POST');
+    const url = new URL(result.url);
+    if (url.origin !== 'https://allegro.pl' || url.pathname !== '/auth/oauth/authorize') throw new Error('Nieprawidłowy adres autoryzacji Allegro.');
+    feedback('Przekierowanie do Allegro…'); location.assign(url.href);
+  }));
+  get('check').addEventListener('click', () => run(async () => { state = await request('check', 'POST'); feedback('Połączenie działa. Dane konta zostały potwierdzone przez Allegro.'); }));
+  get('disconnect').addEventListener('click', () => {
+    if (!confirm('Odłączyć konto Allegro od Sellio? Oferty na Allegro i zapisane szkice pozostaną bez zmian.')) return;
+    void run(async () => { await request('connection', 'DELETE'); state = await request('status'); feedback('Połączenie usunięto z Sellio. Zgodę aplikacji możesz dodatkowo cofnąć w ustawieniach konta Allegro.'); });
+  });
+  void load();
+</script>
+<style>
+  .allegro-connection { margin: 24px 0; padding: 24px; border: 1px solid var(--border); background: var(--surface); border-radius: 12px; scroll-margin-top: 24px; }
+  header { display: flex; gap: 16px; justify-content: space-between; align-items: center; }
+  h2 { font-size: 20px; margin: 8px 0 0; } p { color: var(--muted); font-size: 13px; line-height: 1.6; }
+  .allegro-connection-state { background: color-mix(in srgb,var(--surface) 85%, #f58b46); color: inherit; padding: 7px 10px; border-radius: 6px; font-size: 12px; }
+  .allegro-account { display: flex; flex-direction: column; gap: 6px; padding: 16px 0; }.allegro-account span,small { font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .allegro-setup-note { padding: 16px; border: 1px solid var(--border); border-radius: 8px; margin: 18px 0; }
+  .allegro-setup-note a { color: var(--accent); }code { display: block; overflow-wrap: anywhere; font-size: 12px; }
+  .allegro-connection-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }.button { color: inherit; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); cursor: pointer; padding: 10px 14px; }.button-primary { background: #d54b0c; color: #fff; border-color: #d54b0c; }
+  button:disabled { opacity: .5; cursor: not-allowed; }[hidden] { display: none !important; }.allegro-connection-feedback { font-weight: 600; }.allegro-connection-feedback:empty { display: none; }
+  @media(max-width:600px) { .allegro-connection { padding: 18px; }header { align-items: flex-start; flex-direction: column; } }
+</style>

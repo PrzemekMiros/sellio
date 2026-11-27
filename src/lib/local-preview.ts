@@ -10,6 +10,7 @@ const initial = () => ({
     description: 'Dane testowe. Zmiany zapisują się tylko w tej przeglądarce i nie trafiają do sklepu.',
     images: [], categories: [{ id: 'local-category', name: 'Produkty testowe' }], attributes: [], parent_id: null,
   }] as Record<string, any>[],
+  allegroDrafts: [] as Record<string, any>[],
   orders: [101, 102].map(id => ({
     id: String(id), number: `TEST-${id}`, status: id === 101 ? 'processing' : 'pending',
     created_at: '2026-11-26T10:00:00Z', modified_at: '2026-11-26T10:00:00Z',
@@ -47,7 +48,22 @@ export async function previewRequest(input: string, init: RequestInit = {}) {
   if (url.origin !== location.origin) return blocked();
   const data = read(); const method = init.method?.toUpperCase() || 'GET';
   const base = '/v1/admin/wordpress/stores/wp_local';
-  if (method === 'GET' && url.pathname === `${base}/products`) return Response.json({ products: data.products, total: data.products.length });
+  if (method === 'GET' && url.pathname === '/v1/admin/allegro/status') return Response.json({ configured: false, connected: false, account: null });
+  if (method === 'GET' && url.pathname === `${base}/products`) {
+    const offset = Number(url.searchParams.get('offset') || 0), limit = Number(url.searchParams.get('limit') || 100);
+    return Response.json({ products: data.products.slice(offset, offset + limit), total: data.products.length });
+  }
+  const draftBase = '/v1/admin/allegro/stores/wp_local/drafts';
+  if (method === 'GET' && url.pathname === draftBase) return Response.json({ drafts: data.allegroDrafts || [] });
+  if (method === 'PUT' && url.pathname.startsWith(`${draftBase}/`)) {
+    const { normalizeDraft } = await import('./allegro-drafts');
+    try {
+      const draft = { ...normalizeDraft(JSON.parse(String(init.body))), updatedAt: new Date().toISOString() };
+      if (!data.products.some(product => String(product.id) === draft.productId)) return blocked();
+      data.allegroDrafts = [...(data.allegroDrafts || []).filter(item => item.productId !== draft.productId), draft];
+      save(data); return Response.json({ draft });
+    } catch (error) { return Response.json({ error: (error as Error).message }, { status: 400 }); }
+  }
   if (method === 'GET' && url.pathname === `${base}/orders`) return Response.json({ orders: data.orders, total: data.orders.length });
   const orderStatus = url.pathname.match(/^\/v1\/admin\/wordpress\/stores\/wp_local\/orders\/(\d+)\/status$/);
   if (method === 'POST' && orderStatus) {

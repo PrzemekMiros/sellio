@@ -41,6 +41,40 @@ const request = (path = '', method = 'GET', body?: unknown) => new Request(`http
 });
 const connection = (owner = 'owner-1') => ({ owner_id: owner, secret_hash: 'hash', metadata: { name: 'Shop', site_url: 'https://shop.example.com', catalog_token: 'stored-secret' }, created_at: '', updated_at: '' });
 
+const draftRequest = (store = 'wp_own', method = 'GET', body?: unknown) => new Request(`https://panel.example.com/v1/admin/allegro/stores/${store}/drafts${method === 'PUT' ? '/product-1' : ''}`, {
+  method, headers: { Authorization: 'Bearer test-session', 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}),
+});
+const sampleDraft = () => ({ productId: 'product-1', title: 'Lampa', price: '123,40', quantity: 2, categoryId: '', ean: '', description: '', images: [], condition: '', shippingRatesId: '', returnPolicyId: '', warrantyId: '', handlingTime: '' });
+test('Allegro drafts persist independently and cannot access another owner or missing product', async () => {
+  records.set('store:wp_own', connection()); records.set('store:wp_other', connection('other-owner'));
+  records.set('product:wp_own:product-1', { id: 'product-1', price: '90.00' });
+  assert.equal((await handler(draftRequest('wp_other', 'PUT', sampleDraft()))).status, 404);
+  assert.equal((await handler(draftRequest('wp_other'))).status, 404);
+  assert.equal((await handler(draftRequest('wp_own', 'PUT', sampleDraft()))).status, 200);
+  const { drafts } = await (await handler(draftRequest())).json();
+  assert.equal(drafts.length, 1); assert.equal(drafts[0].price, '123.40'); assert.ok(drafts[0].updatedAt);
+  assert.equal(records.get('product:wp_own:product-1').price, '90.00');
+  records.delete('product:wp_own:product-1');
+  assert.equal((await handler(draftRequest('wp_own', 'PUT', sampleDraft()))).status, 404);
+});
+test('Allegro draft validation rejects malformed values before persistence', async () => {
+  records.set('store:wp_own', connection()); records.set('product:wp_own:product-1', { id: 'product-1' });
+  for (const changes of [{ quantity: -1 }, { price: 'bad' }, { images: ['javascript:alert(1)'] }, { categoryId: 'bad' }, { productId: 'other' }]) {
+    assert.equal((await handler(draftRequest('wp_own', 'PUT', { ...sampleDraft(), ...changes }))).status, 400);
+  }
+  assert.equal([...records.keys()].filter(key => key.startsWith('allegro-draft:')).length, 0);
+  const noAuth = new Request('https://panel.example.com/v1/admin/allegro/stores/wp_own/drafts');
+  assert.equal((await handler(noAuth)).status, 401);
+});
+test('catalog offset exposes products beyond the first hundred without duplicates', async () => {
+  records.set('store:wp_own', connection());
+  for (let i = 0; i < 105; i++) records.set(`product:wp_own:${String(i).padStart(3, '0')}`, { id: String(i), name: `Product ${i}` });
+  const first = await (await handler(request('/wp_own/products?limit=100'))).json();
+  const second = await (await handler(request('/wp_own/products?limit=100&offset=100'))).json();
+  assert.equal(first.products.length, 100); assert.equal(second.products.length, 5);
+  assert.equal(new Set([...first.products, ...second.products].map(product => product.id)).size, 105);
+});
+
 test('connection is saved to the account before returning success; secrets stay on the server', async () => {
   const response = await handler(request('', 'POST', { name: 'Shop', site_url: 'https://shop.example.com', catalog_token: 'catalog-secret' }));
   assert.equal(response.status, 201);

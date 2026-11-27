@@ -98,6 +98,72 @@ test('shows a database failure instead of claiming preferences were saved', asyn
   await expect(page.locator('[data-sync-feedback]')).toContainText('Nie udało się zapisać zasad w bazie');
 });
 
+test('Allegro connection setup is disabled until server credentials are configured', async ({ page }) => {
+  await setup(page);
+  await page.route('**/v1/admin/allegro/status', route => route.fulfill({ json: { configured: false, connected: false, account: null } }));
+  await page.goto('/admin/integracje');
+  await expect(page.getByRole('button', { name: 'Połącz konto Allegro', exact: true })).toBeDisabled();
+  await expect(page.locator('[data-allegro-setup]')).toBeVisible();
+  await expect(page.locator('[data-allegro-state]')).toHaveText('Wymaga konfiguracji');
+});
+
+test('Allegro connected account persists in UI, API checks and disconnect errors remain honest', async ({ page }) => {
+  await setup(page);
+  const status = { configured: true, connected: true, account: { id: 'allegro-1', login: 'Firma-testowa' }, checkedAt: '2026-11-27T20:00:00Z' };
+  await page.route('**/v1/admin/allegro/status', route => route.fulfill({ json: status }));
+  await page.route('**/v1/admin/allegro/check', route => route.fulfill({ json: status }));
+  await page.route('**/v1/admin/allegro/connection', route => route.fulfill({ status: 503, json: { error: 'Nie udało się odłączyć konta' } }));
+  await page.goto('/admin/integracje?allegro=connected');
+  await expect(page.locator('[data-allegro-login]')).toHaveText('Konto: Firma-testowa');
+  await expect(page.locator('[data-allegro-feedback]')).toContainText('zapisane na serwerze');
+  await page.getByRole('button', { name: 'Sprawdź połączenie', exact: true }).click();
+  await expect(page.locator('[data-allegro-feedback]')).toContainText('Połączenie działa');
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Odłącz od Sellio', exact: true }).click();
+  await expect(page.locator('[data-allegro-feedback]')).toHaveText('Nie udało się odłączyć konta');
+  await expect(page.locator('[data-allegro-state]')).toHaveText('Połączono');
+  await page.reload();
+  await expect(page.locator('[data-allegro-login]')).toHaveText('Konto: Firma-testowa');
+  await page.goto('/admin/allegro/wystawianie');
+  await expect(page.locator('[data-allegro-account-select]')).toContainText('Firma-testowa · Allegro.pl');
+});
+
+test('Allegro retains edits after a failed server save and restores a successful draft', async ({ page }) => {
+  await setup(page);
+  let failSave = true;
+  let saved: Record<string, unknown> | null = null;
+  await page.route('**/v1/admin/allegro/stores/wp_test/drafts', route => route.fulfill({ json: { drafts: saved ? [saved] : [] } }));
+  await page.route('**/v1/admin/allegro/stores/wp_test/drafts/1', route => {
+    expect(route.request().headers().authorization).toMatch(/^Bearer /);
+    if (failSave) return route.fulfill({ status: 503, json: { error: 'Serwer zapisu niedostępny' } });
+    saved = { ...route.request().postDataJSON(), updatedAt: new Date().toISOString() };
+    return route.fulfill({ json: { draft: saved } });
+  });
+  await page.goto('/admin/allegro/wystawianie');
+  await page.getByRole('button', { name: 'Formularz wystawiania', exact: true }).click();
+  await page.locator('[data-field=title]').fill('Szkic na serwerze');
+  await page.getByRole('button', { name: 'Zapisz szkice', exact: true }).click();
+  await expect(page.locator('[data-offer-feedback]')).toContainText('Serwer zapisu niedostępny');
+  await expect(page.locator('[data-field=title]')).toHaveValue('Szkic na serwerze');
+  await expect(page.getByRole('button', { name: 'Zapisz szkice', exact: true })).toBeEnabled();
+  failSave = false;
+  await page.getByRole('button', { name: 'Zapisz szkice', exact: true }).click();
+  await expect(page.locator('[data-save-state]')).toHaveText('Wszystkie szkice zapisane na koncie');
+  await page.reload();
+  await page.getByRole('button', { name: 'Zapisane szkice' }).click();
+  await page.getByRole('button', { name: 'Formularz wystawiania', exact: true }).click();
+  await expect(page.locator('[data-field=title]')).toHaveValue('Szkic na serwerze');
+});
+
+test('Allegro does not offer new edits when existing drafts failed to load', async ({ page }) => {
+  await setup(page);
+  await page.route('**/v1/admin/allegro/stores/wp_test/drafts', route => route.fulfill({ status: 503, json: { error: 'Nie udało się odczytać szkiców' } }));
+  await page.goto('/admin/allegro/wystawianie');
+  await expect(page.locator('[data-feedback]')).toHaveText('Nie udało się odczytać szkiców');
+  await expect(page.locator('[data-products] tr')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Odśwież', exact: true })).toBeEnabled();
+});
+
 test('redirects to login only when the refresh token is revoked', async ({ page }) => {
   await setup(page, true);
   await page.route('https://sellio-test.supabase.co/auth/v1/token?grant_type=refresh_token', route => route.fulfill({ status: 400, json: { error_code: 'refresh_token_not_found', msg: 'Invalid Refresh Token' } }));

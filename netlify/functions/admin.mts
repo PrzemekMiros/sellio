@@ -1,9 +1,12 @@
 import { getStore } from '@netlify/blobs';
 import type { Config } from '@netlify/functions';
 import { createHash, randomBytes } from 'node:crypto';
+import { normalizeDraft } from '../../src/lib/allegro-drafts.ts';
+import { AllegroOAuth, AllegroError, oauthCookie } from '../lib/allegro-oauth.ts';
 
 type Connection = { secret_hash: string; owner_id?: string; metadata: Record<string, unknown>; created_at: string; updated_at: string };
 const blobs = getStore('sellio-connector');
+const draftBlobs = getStore({ name: 'sellio-connector', consistency: 'strong' });
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const validUrl = (value: unknown) => { if (typeof value !== 'string') throw new Error('Adres sklepu jest wymagany.'); const url = new URL(value); if (url.protocol !== 'https:') throw new Error('Adres sklepu musi używać HTTPS.'); return url.href.replace(/\/$/, ''); };
@@ -111,6 +114,50 @@ export default async (request: Request) => {
   const user = await currentUser(request);
   if (!user) return json({ error: 'Zaloguj się ponownie, aby zarządzać integracjami.' }, 401);
   const url = new URL(request.url);
+  if (['/v1/admin/allegro/status', '/v1/admin/allegro/connect', '/v1/admin/allegro/check', '/v1/admin/allegro/connection'].includes(url.pathname)) {
+    try {
+      const service = new AllegroOAuth();
+      if (request.method === 'GET' && url.pathname.endsWith('/status')) return json(await service.status(user.id));
+      if (request.method === 'POST' && url.pathname.endsWith('/connect')) {
+        const result = await service.start(user.id);
+        return Response.json({ url: result.url }, { headers: { 'Cache-Control': 'no-store', 'Set-Cookie': result.cookie } });
+      }
+      if (request.method === 'POST' && url.pathname.endsWith('/check')) return json(await service.check(user.id));
+      if (request.method === 'DELETE' && url.pathname.endsWith('/connection')) {
+        const result = await service.disconnect(user.id);
+        return Response.json(result, { headers: { 'Cache-Control': 'no-store', 'Set-Cookie': oauthCookie('', 0) } });
+      }
+      return json({ error: 'Niedozwolona metoda.' }, 405);
+    } catch (error) { return json({ error: error instanceof AllegroError ? error.message : 'Nie udało się obsłużyć połączenia Allegro. Spróbuj ponownie.' }, error instanceof AllegroError ? (error.status === 401 ? 409 : error.status) : 503); }
+  }
+  const draftMatch = url.pathname.match(/^\/v1\/admin\/allegro\/stores\/([\w-]+)\/drafts(?:\/([\w-]+))?$/);
+  if (draftMatch) {
+    if (!await findOwned(draftMatch[1], user.id)) return json({ error: 'Nie znaleziono magazynu.' }, 404);
+    const prefix = `allegro-draft:${user.id}:${draftMatch[1]}:`;
+    if (request.method === 'GET' && !draftMatch[2]) {
+      try {
+        const entries = await draftBlobs.list({ prefix });
+        const drafts = (await Promise.all(entries.blobs.map(entry => draftBlobs.get(entry.key, { type: 'json' })))).filter(Boolean);
+        return json({ drafts });
+      } catch { return json({ error: 'Nie udało się odczytać szkiców. Spróbuj ponownie.' }, 503); }
+    }
+    if (request.method === 'PUT' && draftMatch[2]) {
+      let draft;
+      try {
+        const raw = await request.text();
+        if (raw.length > 100000) return json({ error: 'Szkic jest zbyt duży.' }, 413);
+        draft = normalizeDraft(JSON.parse(raw));
+        if (draft.productId !== draftMatch[2]) throw new Error('Identyfikator produktu nie pasuje do szkicu.');
+      } catch (error) { return json({ error: error instanceof Error ? error.message : 'Nieprawidłowy szkic.' }, 400); }
+      if (!await blobs.get(`product:${draftMatch[1]}:${draft.productId}`, { type: 'json' })) return json({ error: 'Nie znaleziono produktu w magazynie.' }, 404);
+      try {
+        const saved = { ...draft, updatedAt: new Date().toISOString() };
+        await draftBlobs.setJSON(`${prefix}${draft.productId}`, saved);
+        return json({ draft: saved });
+      } catch { return json({ error: 'Nie udało się zapisać szkicu. Spróbuj ponownie.' }, 503); }
+    }
+    return json({ error: 'Niedozwolona metoda.' }, 405);
+  }
   if (request.method === 'GET' && url.pathname === '/v1/admin/wordpress/stores') {
     try {
       const entries = await blobs.list({ prefix: 'store:' });
@@ -165,8 +212,10 @@ export default async (request: Request) => {
   if (request.method === 'GET' && productsMatch) {
     const current = await findOwned(productsMatch[1], user.id); if (!current) return json({ error: 'Store not found' }, 404);
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') ?? 50) || 50));
+    const offset = Math.max(0, Math.floor(Number(url.searchParams.get('offset') ?? 0) || 0));
     const keys = (await blobs.list({ prefix: `product:${productsMatch[1]}:` })).blobs;
-    const products = await Promise.all(keys.slice(0, limit).map(entry => blobs.get(entry.key, { type: 'json' })));
+    keys.sort((left, right) => left.key.localeCompare(right.key));
+    const products = (await Promise.all(keys.slice(offset, offset + limit).map(entry => blobs.get(entry.key, { type: 'json' })))).filter(Boolean);
     products.sort((left: Record<string, unknown>, right: Record<string, unknown>) => String(left?.name ?? '').localeCompare(String(right?.name ?? ''), 'pl'));
     return json({ products, total: keys.length, store: current.metadata.name });
   }

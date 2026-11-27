@@ -2,6 +2,49 @@
 
 Panel Astro oraz backend integracyjny dla WooCommerce/Sellio. Wtyczka WordPress znajduje się w `src/sellio-connector-wp-plugin`.
 
+## AlSellio — integracja Allegro API
+
+Nazwa aplikacji zarejestrowanej w Allegro: **AlSellio**, wersja identyfikatora aplikacji: **1.0**. Panel działa pod adresem https://allsellio.netlify.app/. Kontakt dotyczący działania i weryfikacji aplikacji: **kontakt@przemekmiros.pl**.
+
+Sellio służy do obsługi sprzedaży internetowej, łącząc katalog sklepu z przygotowaniem ofert marketplace. Integracja Allegro jest w fazie testów. Jest przeznaczona dla sprzedawców korzystających z Sellio; każdy użytkownik autoryzuje własne konto. Obecnie jeden użytkownik Sellio może zapisać jedno połączenie Allegro.
+
+### Dostępne funkcje i ograniczenia
+
+- Autoryzacja konta Allegro przez OAuth Authorization Code z PKCE S256.
+- Weryfikacja identyfikatora i loginu sprzedawcy przez `GET https://api.allegro.pl/me`.
+- Trwały zapis połączenia, automatyczne odnawianie tokenów i odłączenie konta.
+- Przygotowywanie szkiców ofert w Sellio na podstawie katalogu produktów.
+- Import ofert i zamówień, publikacja szkiców oraz synchronizacja cen i stanów z Allegro są **planowane** i nie są jeszcze dostępne do testowania. Połączenie konta nie publikuje ofert.
+
+### Uprawnienia API
+
+| Scope | Funkcja i wykorzystanie |
+| --- | --- |
+| `allegro:api:profile:read` | Weryfikacja połączenia: odczyt identyfikatora i loginu konta przez `GET /me`. |
+| `allegro:api:sale:offers:read` | Planowany import danych ofert sprzedawcy; obecnie nie jest wykonywany. |
+| `allegro:api:sale:offers:write` | Planowane publikowanie i edycja ofert, cen i stanów; obecnie nie są wykonywane. |
+| `allegro:api:sale:settings:read` | Planowany odczyt cenników dostaw i warunków sprzedaży do formularza ofert; obecnie nie jest wykonywany. |
+| `allegro:api:orders:read` | Planowany import zamówień do obsługi sprzedaży; obecnie nie jest wykonywany. |
+
+### Dostęp, połączenie i scenariusz weryfikacji
+
+Do testu wymagane są konto Sellio, konto Allegro i skonfigurowana aplikacja API na serwerze Sellio. Dostęp testowy uzgodnij przez **kontakt@przemekmiros.pl**. Aktywne oferty ani zamówienia nie są potrzebne do testu połączenia.
+
+1. Zaloguj się na https://allsellio.netlify.app/logowanie/.
+2. Otwórz https://allsellio.netlify.app/admin/integracje/#allegro-connection i wybierz **Połącz konto Allegro**.
+3. Zaloguj się na stronie Allegro i zaakceptuj uprawnienia. Hasło do Allegro podajesz wyłącznie w Allegro. Powrót prowadzi do `https://allsellio.netlify.app/api/allegro/callback`.
+4. Po powrocie do Sellio sprawdź login konta. Kliknij **Sprawdź połączenie**, aby wykonać `GET /me` i zobaczyć wynik.
+5. Odśwież stronę i potwierdź, że połączenie pozostało zapisane.
+6. Kliknij **Odłącz od Sellio**, potwierdź i sprawdź, że panel pokazuje brak połączenia. Nie usuwa to ofert na Allegro.
+
+### Bezpieczeństwo i dane
+
+Panel wymaga sesji użytkownika Supabase. Dane i autoryzacje różnych użytkowników są rozdzielone. Tokeny Allegro oraz dane przepływu OAuth są przechowywane po stronie serwera w Netlify Blobs z szyfrowaniem AES-256-GCM i identyfikatorem użytkownika jako AAD. Tokeny Allegro nie trafiają do przeglądarki ani do localStorage. OAuth wykorzystuje jednorazowy state, PKCE i cookie Secure/HttpOnly/SameSite=Lax. Odnowienie tokenów odbywa się podczas weryfikacji połączenia i przez zadanie okresowe. Cofnięcie zgody wymaga ponownego połączenia.
+
+Odłączenie usuwa zapisane dane dostępowe z Sellio. Użytkownik może także cofnąć zgodę w ustawieniach powiązanych aplikacji Allegro.
+
+Publiczna dokumentacja: https://allsellio.netlify.app/integracja-allegro/. Konfigurację serwera opisuje [docs/allegro-setup.md](docs/allegro-setup.md).
+
 ## Uruchomienie integracji WooCommerce
 
 1. Wygeneruj dwa sekrety: 32 losowe bajty zapisane w Base64 dla `TOKEN_ENCRYPTION_KEY` oraz długi losowy ciąg dla `BACKEND_ADMIN_KEY`.

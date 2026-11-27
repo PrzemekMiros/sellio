@@ -1,0 +1,69 @@
+---
+const contactEmail = import.meta.env.PUBLIC_ALLEGRO_CONTACT_EMAIL?.trim() || '';
+const permissions = [
+  ['allegro:api:profile:read', 'Weryfikacja połączenia', 'Odczyt identyfikatora i loginu konta przez GET /me. Funkcja dostępna po autoryzacji.'],
+  ['allegro:api:sale:offers:read', 'Import ofert — planowany', 'Odczyt ofert sprzedawcy. Obecnie nie jest wykonywany.'],
+  ['allegro:api:sale:offers:write', 'Publikowanie i edycja ofert — planowane', 'Zapis ofert oraz aktualizacja cen i stanów. Obecnie nie są wykonywane.'],
+  ['allegro:api:sale:settings:read', 'Ustawienia sprzedaży — planowane', 'Odczyt cenników dostaw i warunków sprzedaży do formularza ofert. Obecnie nie jest wykonywany.'],
+  ['allegro:api:orders:read', 'Import zamówień — planowany', 'Odczyt zamówień do obsługi sprzedaży. Obecnie nie jest wykonywany.'],
+];
+---
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width" />
+    <title>Sellio — dokumentacja integracji Allegro</title>
+    <meta name="description" content="Cel, uprawnienia i sposób weryfikacji integracji Sellio z Allegro API." />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="/landing-favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <main>
+      <a class="brand" href="/">Sellio</a>
+      <p class="label">DOKUMENTACJA APLIKACJI · ALSELLIO 1.0</p>
+      <h1>Integracja z Allegro</h1>
+      <p class="lead">Sellio to panel do obsługi sprzedaży internetowej. Integracja umożliwia połączenie konta sprzedawcy z panelem oraz przygotowanie danych do przyszłej obsługi ofert i zamówień.</p>
+      {!contactEmail && <aside>Dokumentacja jest w przygotowaniu: administrator musi uzupełnić adres kontaktowy przed zgłoszeniem aplikacji do weryfikacji Allegro.</aside>}
+      <h2>Status i przeznaczenie</h2>
+      <p>Aplikacja jest w fazie testów. Panel może obsługiwać konta sprzedawców korzystających z Sellio. Każdy użytkownik autoryzuje własne konto Allegro; dane i połączenia użytkowników są od siebie odseparowane.</p>
+      <p>Dostępne są: autoryzacja OAuth, sprawdzanie danych konta, odnawianie dostępu i odłączenie konta. Formularz wystawiania zapisuje szkice w Sellio. Publikowanie ofert, import ofert i zamówień oraz synchronizacja cen i stanów z Allegro pozostają planowane.</p>
+      <h2>Połączenie konta</h2>
+      <ol>
+        <li>Zaloguj się na <a href="/logowanie/">stronie logowania Sellio</a>. Dostęp do panelu jest przeznaczony dla użytkowników z kontem Sellio; dostęp do testów uzgodnij z osobą kontaktową poniżej.</li>
+        <li>W sekcji <a href="/admin/integracje/#allegro-connection">Integracje → Połączenie z Allegro</a> wybierz „Połącz konto Allegro”.</li>
+        <li>Zaloguj się w Allegro i zaakceptuj uprawnienia aplikacji. Sellio używa Authorization Code flow z PKCE. Hasło do Allegro podajesz wyłącznie w Allegro.</li>
+        <li>Po powrocie do Sellio sprawdź wyświetlony login i użyj przycisku „Sprawdź połączenie”.</li>
+      </ol>
+      <h2>API i uprawnienia</h2>
+      <p>Poniższe zakresy są objęte konfiguracją autoryzacji aplikacji. Część jest przeznaczona dla planowanych funkcji, które nie są jeszcze dostępne do weryfikacji.</p>
+      <div class="table-wrap"><table><thead><tr><th>Zakres OAuth</th><th>Funkcja</th><th>Wykorzystanie</th></tr></thead><tbody>{permissions.map(([scope, name, purpose]) => <tr><td><code>{scope}</code></td><td>{name}</td><td>{purpose}</td></tr>)}</tbody></table></div>
+      <h2>Dostęp i bezpieczeństwo danych</h2>
+      <p>Panel wymaga zalogowania. Tokeny OAuth są przechowywane po stronie serwera w trwałym magazynie Netlify Blobs, zaszyfrowane AES-256-GCM i przypisane do użytkownika Sellio. Tokeny Allegro nie są udostępniane przeglądarce ani przechowywane w localStorage. Dostęp jest automatycznie odnawiany, dopóki zgoda Allegro pozostaje ważna.</p>
+      <p>Przycisk „Odłącz od Sellio” usuwa zapisane dane dostępowe. Zgodę aplikacji można również cofnąć w ustawieniach konta Allegro. Odłączenie nie usuwa ofert na Allegro.</p>
+      <h2>Weryfikacja działania</h2>
+      <p>Wymagane są konto Sellio, konto Allegro oraz skonfigurowana aplikacja API po stronie serwera Sellio. Nie są potrzebne aktywne oferty ani zamówienia do testu połączenia.</p>
+      <ol>
+        <li>Połącz konto według instrukcji powyżej. Sprawdź, czy panel pokazuje właściwy login Allegro.</li>
+        <li>Kliknij „Sprawdź połączenie”. Sellio wykona zapytanie GET /me i wyświetli wynik weryfikacji.</li>
+        <li>Odśwież stronę. Zapisane połączenie powinno pozostać dostępne.</li>
+        <li>Wybierz „Odłącz od Sellio” i potwierdź. Panel powinien pokazać brak połączenia.</li>
+      </ol>
+      <p>Funkcji oznaczonych jako planowane nie można jeszcze przetestować. Samo połączenie konta nie publikuje ofert ani nie uruchamia sprzedaży.</p>
+      <h2>Kontakt</h2>
+      {contactEmail ? <p>Kontakt w sprawach aplikacji i weryfikacji integracji: <a href={`mailto:${contactEmail}`}>{contactEmail}</a>.</p> : <p>Adres kontaktowy oczekuje na uzupełnienie przez właściciela aplikacji.</p>}
+    </main>
+  </body>
+</html>
+<style>
+  :global(body) { margin: 0; background: #f5f6f8; color: #20252e; font: 16px/1.65 system-ui, sans-serif; }
+  main { max-width: 1000px; margin: 0 auto; padding: 48px 24px 80px; }
+  .brand { color: #20252e; font-size: 24px; font-weight: 800; text-decoration: none; }
+  .label { color: #6c5260; font-size: 12px; letter-spacing: .1em; margin-top: 40px; }
+  h1 { font-size: clamp(32px, 6vw, 48px); line-height: 1.15; margin: 12px 0 24px; }
+  h2 { font-size: 23px; margin-top: 36px; line-height: 1.3; }.lead { font-size: 19px; }
+  a { color: #9c360c; text-underline-offset: 3px; } li { margin-bottom: 10px; }
+  aside { padding: 16px; background: #fff0d3; border: 1px solid #e6cc99; border-radius: 8px; }
+  .table-wrap { overflow-x: auto; } table { border-collapse: collapse; width: 100%; background: white; font-size: 14px; }
+  th,td { padding: 14px; border: 1px solid #dce0e6; text-align: left; vertical-align: top; } th { background: #e9edf2; }
+  code { overflow-wrap: anywhere; } td:first-child { min-width: 180px; }
+</style>
