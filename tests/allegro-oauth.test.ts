@@ -67,6 +67,9 @@ test('OAuth uses secure browser binding and PKCE; success persists encrypted tok
   assert.equal(flow.url.searchParams.get('redirect_uri'), 'https://allsellio.netlify.app/api/allegro/callback');
   await client.callback(flow.request);
   const params = new URLSearchParams(String(requests[0].init?.body));
+  assert.equal(params.get('client_id'), 'test-application');
+  assert.equal(new Headers(requests[0].init?.headers).has('Authorization'), false);
+  assert.ok(!String(requests[0].init?.body).includes('test-client-secret'));
   assert.equal(createHash('sha256').update(params.get('code_verifier')!).digest('base64url'), flow.url.searchParams.get('code_challenge'));
   assert.equal((await service().status('owner-1')).account?.login, 'Sklep-testowy');
   assert.equal((await client.status('owner-2')).connected, false);
@@ -98,7 +101,12 @@ test('expired token is refreshed and the new pair survives a fresh service insta
   response = async url => url.endsWith('/token') ? Response.json({ access_token: 'old-access', refresh_token: 'old-refresh', expires_in: 1 }) : Response.json({ id: 'allegro-user', login: 'Shop' });
   const client = service(); await client.callback((await begin(client)).request);
   response = async (url, init) => {
-    if (url.endsWith('/token')) { assert.match(String(init?.body), /refresh_token=old-refresh/); return Response.json({ access_token: 'new-access', refresh_token: 'new-refresh', expires_in: 43200 }); }
+    if (url.endsWith('/token')) {
+      assert.match(String(init?.body), /refresh_token=old-refresh/);
+      assert.equal(new Headers(init?.headers).get('Authorization'), `Basic ${Buffer.from('test-application:test-client-secret').toString('base64')}`);
+      assert.equal(new URLSearchParams(String(init?.body)).has('code_verifier'), false);
+      return Response.json({ access_token: 'new-access', refresh_token: 'new-refresh', expires_in: 43200 });
+    }
     assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer new-access'); return Response.json({ id: 'allegro-user', login: 'Shop' });
   };
   await client.check('owner-1'); await service().check('owner-1');
@@ -138,4 +146,53 @@ test('public callback strips codes and returns a safe error on invalid state', a
   assert.equal(result.status, 303); assert.match(result.headers.get('location')!, /allegro=failed/);
   assert.ok(![...result.headers].flat().join('').includes('secret-code'));
   assert.equal(result.headers.get('referrer-policy'), 'no-referrer');
+  assert.equal(new URL(result.headers.get('location')!).searchParams.get('allegro_error'), 'browser_session');
+});
+
+test('callback diagnoses token rejection without exposing provider details in logs or redirects', async t => {
+  const client = service(), flow = await begin(client);
+  const logs: unknown[] = [];
+  t.mock.method(console, 'warn', (...args: unknown[]) => logs.push(args));
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ error: 'invalid_client', error_description: 'sensitive-provider-detail' }, { status: 401 }));
+  const result = await callbackHandler(flow.request), location = result.headers.get('location')!;
+  assert.equal(new URL(location).searchParams.get('allegro_error'), 'invalid_client');
+  assert.equal(result.headers.get('cache-control'), 'no-store');
+  assert.match(result.headers.get('set-cookie')!, /Max-Age=0/);
+  const output = JSON.stringify({ location, logs });
+  for (const secret of ['sensitive-provider-detail', 'one-time-code', 'test-client-secret', flow.url.searchParams.get('state')!]) assert.ok(!output.includes(secret));
+  assert.ok(output.includes('upstreamStatus'));
+  assert.equal((await client.status('owner-1')).connected, false);
+});
+
+test('callback diagnoses forbidden profile reads without saving partial tokens', async t => {
+  const client = service(), flow = await begin(client);
+  t.mock.method(console, 'warn', () => {});
+  t.mock.method(globalThis, 'fetch', async (url: string) => url.endsWith('/token')
+    ? Response.json({ access_token: 'access-secret', refresh_token: 'refresh-secret', expires_in: 43200 })
+    : Response.json({ errors: [{ message: 'untrusted private detail' }] }, { status: 403 }));
+  const result = await callbackHandler(flow.request);
+  assert.equal(new URL(result.headers.get('location')!).searchParams.get('allegro_error'), 'profile_forbidden');
+  assert.equal((await client.status('owner-1')).connected, false);
+  assert.ok(!JSON.stringify([...records.values()]).includes('access-secret'));
+});
+
+test('callback allowlists provider authorization errors and never exchanges a denied code', async () => {
+  for (const [error, expected] of [['access_denied', 'consent_denied'], ['invalid_scope', 'invalid_scope'], ['private-error-with-secrets', 'authorization_rejected']]) {
+    const client = service(), flow = await begin(client), url = new URL(flow.request.url);
+    url.searchParams.set('error', error);
+    const result = await callbackHandler(new Request(url, { headers: flow.request.headers }));
+    assert.equal(new URL(result.headers.get('location')!).searchParams.get('allegro_error'), expected);
+    assert.ok(!result.headers.get('location')!.includes('private-error-with-secrets'));
+  }
+  assert.equal(requests.length, 0);
+});
+
+test('unexpected storage failure returns a safe diagnostic instead of exposing an exception', async t => {
+  const client = service(), flow = await begin(client);
+  t.mock.method(AllegroOAuth.prototype, 'callback', async () => { throw new Error('private-storage-url-and-token'); });
+  const logs: unknown[] = [];
+  t.mock.method(console, 'warn', (...args: unknown[]) => logs.push(args));
+  const result = await callbackHandler(flow.request), location = result.headers.get('location')!;
+  assert.equal(new URL(location).searchParams.get('allegro_error'), 'internal');
+  assert.ok(!JSON.stringify({ location, logs }).includes('private-storage-url-and-token'));
 });

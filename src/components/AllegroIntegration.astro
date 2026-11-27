@@ -12,6 +12,7 @@ import Icon from './Icon.astro';
 </section>
 <script>
   import { authenticatedFetch } from '../lib/auth';
+  import { allegroErrors, allegroErrorCode } from '../lib/allegro-errors';
   type Status = { configured: boolean; connected: boolean; reconnect?: boolean; account: { id: string; login: string } | null; checkedAt?: string };
   const root = document.querySelector<HTMLElement>('#allegro-connection')!;
   const get = <T extends HTMLElement = HTMLElement>(name: string) => root.querySelector<T>(`[data-allegro-${name}]`)!;
@@ -44,9 +45,15 @@ import Icon from './Icon.astro';
   }
   const load = () => run(async () => {
     state = await request('status');
-    const result = new URL(location.href).searchParams.get('allegro');
-    if (result) { const url = new URL(location.href); url.searchParams.delete('allegro'); history.replaceState(null, '', url); }
-    feedback(result === 'failed' ? 'Nie udało się dokończyć autoryzacji. Rozpocznij połączenie ponownie i zaakceptuj zgodę na stronie Allegro.' : result === 'connected' && state?.connected ? 'Konto Allegro zostało połączone i zapisane na serwerze.' : '');
+    const url = new URL(location.href), result = url.searchParams.get('allegro');
+    const reason = allegroErrorCode(url.searchParams.get('allegro_error'));
+    const reference = url.searchParams.get('allegro_ref') || '';
+    const diagnostic = /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/.test(reference) ? ` Identyfikator: ${reference}.` : '';
+    if (result) {
+      ['allegro', 'allegro_error', 'allegro_ref'].forEach(key => url.searchParams.delete(key));
+      history.replaceState(null, '', url);
+    }
+    feedback(result === 'failed' ? `${allegroErrors[reason]} Kod: ${reason}.${diagnostic}` : result === 'connected' && state?.connected ? 'Konto Allegro zostało połączone i zapisane na serwerze.' : '');
   });
   get('refresh').addEventListener('click', load);
   get('connect').addEventListener('click', () => run(async () => {

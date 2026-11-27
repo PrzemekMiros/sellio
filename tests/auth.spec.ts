@@ -107,6 +107,21 @@ test('Allegro connection setup is disabled until server credentials are configur
   await expect(page.locator('[data-allegro-state]')).toHaveText('Wymaga konfiguracji');
 });
 
+test('Allegro callback shows an actionable error and removes diagnostic parameters from the URL', async ({ page }) => {
+  await setup(page);
+  await page.route('**/v1/admin/allegro/status', route => route.fulfill({ json: { configured: true, connected: false, account: null } }));
+  await page.goto('/admin/integracje?allegro=failed&allegro_error=profile_forbidden&allegro_ref=12345678-1234-1234-1234-123456789abc#allegro-connection');
+  await expect(page.locator('[data-allegro-feedback]')).toContainText('HTTP 403');
+  await expect(page.locator('[data-allegro-feedback]')).toContainText('User-Agent');
+  await expect(page.locator('[data-allegro-feedback]')).toContainText('12345678-1234-1234-1234-123456789abc');
+  await expect(page.getByRole('button', { name: 'Połącz konto Allegro', exact: true })).toBeEnabled();
+  expect(new URL(page.url()).search).toBe('');
+  await page.goto('/admin/integracje?allegro=failed&allegro_error=private-provider-error&allegro_ref=untrusted-secret');
+  await expect(page.locator('[data-allegro-feedback]')).toContainText('Kod: internal');
+  await expect(page.locator('[data-allegro-feedback]')).not.toContainText('untrusted-secret');
+  await expect(page.locator('[data-allegro-feedback]')).not.toContainText('private-provider-error');
+});
+
 test('Allegro connected account persists in UI, API checks and disconnect errors remain honest', async ({ page }) => {
   await setup(page);
   const status = { configured: true, connected: true, account: { id: 'allegro-1', login: 'Firma-testowa' }, checkedAt: '2026-11-27T20:00:00Z' };

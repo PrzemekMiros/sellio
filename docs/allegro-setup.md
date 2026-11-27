@@ -26,6 +26,8 @@ Wymagania Allegro: https://developer.allegro.pl/tutorials/informacje-podstawowe-
 - Dane są przypisane do użytkownika Sellio. Jedno konto Allegro na użytkownika; ponowna autoryzacja zastępuje je dopiero po udanym zapisie.
 - Tokeny i dane przepływu są szyfrowane AES-256-GCM, z identyfikatorem użytkownika jako AAD, w trwałym magazynie Netlify Blobs `sellio-allegro`. Nie trafiają do klienta ani localStorage.
 - OAuth stosuje PKCE S256, losowy state, jednorazowe wykorzystanie state oraz cookie Secure/HttpOnly/SameSite=Lax. Sesja łączenia jest ważna 10 minut.
+- Wymiana kodu z PKCE wysyła `client_id` i `code_verifier` w formularzu, bez nagłówka Basic, zgodnie z aktualnym poradnikiem Allegro. Odświeżanie tokenów nadal używa Basic z Client ID i Client Secret.
+- Błędy powrotu OAuth pokazują bezpieczny kod przyczyny i losowy identyfikator diagnostyczny. Log funkcji `allegro-callback` zawiera tylko te wartości i status HTTP; nie zapisuje kodów autoryzacji, tokenów, cookies, treści błędów dostawcy ani danych konta.
 - Odnowienie dostępu następuje przy sprawdzaniu połączenia oraz przez zadanie Netlify `allegro-maintenance` co 6 godzin. Cofnięta zgoda wymaga ponownej autoryzacji. Nie obiecujemy bezterminowego dostępu po zmianie hasła czy cofnięciu zgody w Allegro.
 - Warunkowe zapisy ETag chronią przed równoczesnym odświeżaniem tokenów i przywróceniem połączenia po jego odłączeniu.
 - Odłączenie usuwa dane dostępowe z Sellio. Zgodę po stronie Allegro użytkownik może dodatkowo cofnąć w „Powiązanych aplikacjach”.
