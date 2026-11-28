@@ -36,10 +36,15 @@ export function initAllegroListing() {
     details.append(text('strong', product.name || 'Bez nazwy'), text('small', `SKU: ${product.sku || '—'} · ID: ${product.id}`));
     wrapper.append(thumbnail(product), details); return wrapper;
   }
-  function catalogIdentity(product: Product, hasDraft: boolean) {
+  function isAllegroListed(product: Product) {
+    if (product.allegro_offer_id || product.allegroOfferId || product.allegro_listed === true || product.is_allegro_listed === true) return true;
+    const offers = Array.isArray(product.allegro_offers) ? product.allegro_offers : Array.isArray(product.allegroOffers) ? product.allegroOffers : [];
+    return offers.some((offer: Product) => offer?.id && !['draft', 'ended', 'inactive'].includes(String(offer.status || '').toLowerCase()));
+  }
+  function catalogIdentity(product: Product, isListed: boolean) {
     const wrapper = text('div', '', 'al-catalog-product');
     const title = text('strong', product.name || 'Bez nazwy');
-    if (hasDraft) title.prepend(text('span', '1', 'al-draft-mark'));
+    if (isListed) title.prepend(text('span', '1', 'al-draft-mark'));
     const identifiers = [product.ean || product.global_unique_id ? `EAN ${product.ean || product.global_unique_id}` : '', product.sku ? `SKU ${product.sku}` : ''].filter(Boolean);
     wrapper.append(title);
     if (identifiers.length) wrapper.append(text('small', identifiers.map(value => `[${value}]`).join(' ')));
@@ -76,7 +81,7 @@ export function initAllegroListing() {
       const id = String(product.id), row = document.createElement('tr'), checkCell = document.createElement('td'), check = document.createElement('input');
       check.type = 'checkbox'; check.disabled = busy; check.checked = selected.has(id); check.setAttribute('aria-label', `Zaznacz ${product.name}`); row.classList.toggle('is-selected', check.checked);
       check.addEventListener('change', () => { if (check.checked) selected.add(id); else selected.delete(id); row.classList.toggle('is-selected', check.checked); updateSelection(); }); checkCell.append(check);
-      const nameCell = document.createElement('td'); nameCell.append(catalogIdentity(product, drafts.has(id)));
+      const nameCell = document.createElement('td'); nameCell.append(catalogIdentity(product, isAllegroListed(product)));
       const price = product.price != null && product.price !== '' && Number.isFinite(Number(product.price)) ? `${Number(product.price).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${product.currency || 'PLN'}` : '—';
       const actionCell = document.createElement('td'), action = button('Formularz wystawiania »', () => openEditor([id]), 'al-button al-row-action');
       action.setAttribute('aria-label', 'Formularz wystawiania'); actionCell.append(action);
@@ -116,7 +121,7 @@ export function initAllegroListing() {
       const select = get<HTMLSelectElement>('category'); select.replaceChildren(new Option('Pokaż wszystkie produkty', ''));
       for (const [id, name] of [...categories].sort((a, b) => a[1].localeCompare(b[1], 'pl'))) select.add(new Option(name, id));
       feedback('');
-    } catch (error) { loadFailed = true; feedback(error instanceof Error ? error.message : 'Nie udało się wczytać danych.', true); }
+    } catch (error) { loadFailed = true; root.querySelector<HTMLDetailsElement>('.al-filter-panel')!.open = true; feedback(error instanceof Error ? error.message : 'Nie udało się wczytać danych.', true); }
     finally { busy = false; get<HTMLButtonElement>('refresh').disabled = false; get<HTMLSelectElement>('store').disabled = !stores.length; render(); }
   }
   function fromProduct(product: Product): AllegroDraft {
@@ -298,7 +303,14 @@ export function initAllegroListing() {
       const productStore = await loadWordpressStore();
       const response = await databaseFetch('stores?provider=eq.woocommerce&select=id,external_id,name,site_url,credentials,created_at&order=updated_at.desc');
       if (!response.ok) throw new Error('Nie udało się odczytać magazynów. Odśwież, aby spróbować ponownie.');
-      stores = await response.json(); store = stores.find(entry => entry.id === productStore?.id) || stores[0];
+      const savedStores = await response.json() as WordpressStore[];
+      const catalogs = new Map<string, WordpressStore>();
+      for (const entry of savedStores) {
+        const key = String(entry.site_url || entry.external_id).trim().replace(/\/$/, '').toLocaleLowerCase('pl');
+        const current = catalogs.get(key);
+        if (!current || entry.id === productStore?.id) catalogs.set(key, entry);
+      }
+      stores = [...catalogs.values()]; store = stores.find(entry => entry.id === productStore?.id) || stores[0];
       const select = get<HTMLSelectElement>('store'); select.replaceChildren();
       if (!stores.length) select.add(new Option('Brak połączonych magazynów', ''));
       for (const entry of stores) {

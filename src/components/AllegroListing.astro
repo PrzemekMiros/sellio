@@ -37,9 +37,12 @@ import '../styles/allegro-listing.css';
       <div class="al-empty" data-empty hidden><Icon name="inbox" size={35} /><h3 data-empty-title>Brak produktów</h3><p data-empty-description></p><a data-empty-import href="/admin/produkty/import-eksport">Przejdź do importu produktów →</a></div>
       <div class="al-pagination"><label>Produktów na stronę<select data-page-size aria-label="Na stronie"><option>25</option><option>50</option><option>100</option></select></label><div><button class="al-button" type="button" data-prev aria-label="Poprzednia strona">←</button><button class="al-button" type="button" data-next aria-label="Następna strona">→</button></div></div>
     </div>
-    <div class="al-selection">
+    <div class="al-selection-state" hidden>
       <div class="al-selection-summary"><strong data-selected>Zaznaczono: 0</strong><button type="button" class="al-link" data-select-filtered>Zaznacz wszystkie wyniki</button><button type="button" class="al-link" data-clear-selection>Odznacz wszystkie</button><small data-selection-note></small></div>
-      <div class="al-actions"><label>Akcja masowa<select data-batch-action><option value="save">Zapisz jako szkice</option><option value="edit">Edytuj cenę, ilość i ustawienia</option><option value="check">Sprawdź podstawowe dane</option><option value="delete">Usuń zapisane szkice</option></select></label><button type="button" class="al-button" data-run-batch disabled>Wykonaj</button><button type="button" class="al-button al-primary al-open-selected" data-open-selected disabled><span class="al-play" aria-hidden="true">▷</span>Wystaw zaznaczone (formularz)</button></div>
+      <label>Akcja masowa<select data-batch-action><option value="save">Zapisz jako szkice</option><option value="edit">Edytuj cenę, ilość i ustawienia</option><option value="check">Sprawdź podstawowe dane</option><option value="delete">Usuń zapisane szkice</option></select></label><button type="button" data-run-batch disabled>Wykonaj</button>
+    </div>
+    <div class="al-selection">
+      <button type="button" class="al-button al-primary al-open-selected" data-open-selected disabled><span class="al-play" aria-hidden="true">▷</span>Wystaw zaznaczone (formularz)</button>
     </div>
     <section class="al-card al-batch-report" data-batch-report hidden aria-labelledby="al-batch-title"><h3 id="al-batch-title" tabindex="-1">Wynik akcji masowej</h3><p data-batch-summary role="status" aria-live="polite"></p><progress data-batch-progress value="0" max="1" aria-label="Postęp akcji masowej"></progress><ul data-batch-errors></ul><button class="al-button" type="button" data-retry-batch hidden>Ponów nieudane</button></section>
   </section>

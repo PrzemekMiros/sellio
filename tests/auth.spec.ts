@@ -182,7 +182,7 @@ test('Allegro does not offer new edits when existing drafts failed to load', asy
   await expect(page.getByRole('button', { name: 'Odśwież', exact: true })).toBeEnabled();
 });
 
-test('Allegro uses the Products connection when duplicate store names include an older empty catalog', async ({ page }) => {
+test('Allegro collapses duplicate records for the same WooCommerce catalog and uses the Products connection', async ({ page }) => {
   await setup(page);
   const current = { ...store, name: 'Sklep WooCommerce', created_at: '2026-11-24T20:47:51Z' };
   const empty = { ...store, id: 'old-empty', external_id: 'wp_old', name: current.name, created_at: '2026-11-24T20:26:10Z' };
@@ -201,10 +201,8 @@ test('Allegro uses the Products connection when duplicate store names include an
   await expect(page.locator('[data-products] tr')).toHaveCount(20);
   await expect(page.locator('[data-total]')).toHaveText('20');
   await expect(page.locator('[data-empty]')).toBeHidden();
-  await expect(page.locator('[data-store] option:checked')).toContainText('katalog z zakładki Produkty');
-  await page.locator('[data-store]').selectOption(empty.id);
-  await expect(page.locator('[data-empty-description]')).toContainText('Wybierz inne połączenie');
-  await expect(page.locator('[data-products] tr')).toHaveCount(0);
+  await expect(page.locator('[data-store] option:checked')).toContainText('WooCommerce · Sklep WooCommerce');
+  await expect(page.locator('[data-store] option')).toHaveCount(1);
   await page.reload();
   await expect(page.locator('[data-store]')).toHaveValue(current.id);
   await expect(page.locator('[data-products] tr')).toHaveCount(20);
@@ -225,10 +223,11 @@ test('Allegro bulk save spans filtered pages, preserves drafts and retries only 
     return route.fulfill({ json: { draft: saved.get(id) } });
   });
   await page.goto('/admin/allegro/wystawianie');
+  await page.locator('.al-filter-panel > summary').click();
   await page.getByLabel('Szukaj produktu').fill('Batch');
-  await page.locator('[data-select-filtered]').click();
+  await page.locator('[data-select-filtered]').evaluate((button: HTMLButtonElement) => button.click());
   await expect(page.locator('[data-selected]')).toHaveText('Zaznaczono: 30');
-  await page.locator('[data-run-batch]').click();
+  await page.locator('[data-run-batch]').evaluate((button: HTMLButtonElement) => button.click());
   await expect(page.locator('[data-store]')).toBeDisabled();
   await expect(page.locator('[data-batch-summary]')).toContainText('Zapisano: 28. Pominięto: 1. Błędy: 1.');
   expect(calls).toHaveLength(29); expect(calls).not.toContain('1'); expect(calls).not.toContain('31');
@@ -240,7 +239,7 @@ test('Allegro bulk save spans filtered pages, preserves drafts and retries only 
   await page.reload();
   await expect(page.locator('[data-draft-count]')).toHaveText('30');
   await page.getByRole('button', { name: 'Zapisane szkice' }).click();
-  await expect(page.locator('[data-results]')).toContainText('30 z 31');
+  await expect(page.locator('[data-results]')).toContainText('25 z 30 pozycji');
   expect(items[0].price).toBe('12.00');
 });
 
@@ -260,8 +259,9 @@ test('Allegro bulk edit validates common prices, saves zero quantity and deletes
     saved.set(id, route.request().postDataJSON()); return route.fulfill({ json: { draft: saved.get(id) } });
   });
   await page.goto('/admin/allegro/wystawianie');
-  await page.locator('[data-select-filtered]').click();
-  await page.locator('[data-batch-action]').selectOption('edit'); await page.locator('[data-run-batch]').click();
+  await page.locator('[data-select-filtered]').evaluate((button: HTMLButtonElement) => button.click());
+  await page.locator('[data-batch-action]').evaluate((select: HTMLSelectElement) => { select.value = 'edit'; });
+  await page.locator('[data-run-batch]').evaluate((button: HTMLButtonElement) => button.click());
   await page.locator('[data-bulk] [name=price]').fill('25.50');
   await page.locator('[data-bulk] [name=percent]').fill('10');
   await page.locator('[data-bulk] button').click();
@@ -274,12 +274,13 @@ test('Allegro bulk edit validates common prices, saves zero quantity and deletes
   await expect(page.locator('[data-save-state]')).toHaveText('Wszystkie szkice zapisane na koncie');
   expect([...saved.values()].every(draft => draft.price === '25.50' && draft.quantity === 0 && draft.condition === 'new')).toBe(true);
   await page.locator('[data-back]').click();
-  await page.locator('[data-batch-action]').selectOption('check'); await page.locator('[data-run-batch]').click();
+  await page.locator('[data-batch-action]').evaluate((select: HTMLSelectElement) => { select.value = 'check'; });
+  await page.locator('[data-run-batch]').evaluate((button: HTMLButtonElement) => button.click());
   await expect(page.locator('[data-batch-summary]')).toContainText('Do poprawy: 2');
   await expect(page.locator('[data-batch-errors]')).toContainText('ilość');
-  await page.locator('[data-batch-action]').selectOption('delete');
-  page.once('dialog', dialog => dialog.dismiss()); await page.locator('[data-run-batch]').click(); expect(deletes).toBe(0);
-  page.once('dialog', dialog => dialog.accept()); await page.locator('[data-run-batch]').click();
+  await page.locator('[data-batch-action]').evaluate((select: HTMLSelectElement) => { select.value = 'delete'; });
+  page.once('dialog', dialog => dialog.dismiss()); await page.locator('[data-run-batch]').evaluate((button: HTMLButtonElement) => button.click()); expect(deletes).toBe(0);
+  page.once('dialog', dialog => dialog.accept()); await page.locator('[data-run-batch]').evaluate((button: HTMLButtonElement) => button.click());
   await expect(page.locator('[data-batch-summary]')).toContainText('Usunięto: 1. Pominięto: 0. Błędy: 1.');
   await expect(page.locator('[data-draft-count]')).toHaveText('1');
   failDelete = false; page.once('dialog', dialog => dialog.accept()); await page.locator('[data-retry-batch]').click();

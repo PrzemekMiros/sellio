@@ -24,8 +24,16 @@ beforeEach(() => {
     if (url.pathname === '/rest/v1/organization_members') return Response.json([{ organization_id: 'organization-1' }]);
     if (url.pathname === '/rest/v1/stores') {
       if (failDatabase) return Response.json({}, { status: 503 });
-      if (init.method === 'POST') { stores.push(JSON.parse(String(init.body))); return new Response(null, { status: 201 }); }
-      return Response.json(stores.filter(store => `eq.${store.external_id}` === url.searchParams.get('external_id')));
+      if (init.method === 'PATCH') {
+        const entry = stores.find(store => `eq.${store.id}` === url.searchParams.get('id'));
+        if (entry) Object.assign(entry, JSON.parse(String(init.body)));
+        return new Response(null, { status: 204 });
+      }
+      if (init.method === 'POST') { stores.push({ id: `store-row-${stores.length + 1}`, ...JSON.parse(String(init.body)) }); return new Response(null, { status: 201 }); }
+      const externalId = url.searchParams.get('external_id'), siteUrl = url.searchParams.get('site_url');
+      if (externalId) return Response.json(stores.filter(store => `eq.${store.external_id}` === externalId));
+      if (siteUrl) return Response.json(stores.filter(store => `eq.${store.site_url}` === siteUrl));
+      return Response.json(stores);
     }
     if (url.pathname === '/wp-json/sellio/v1/connection') return Response.json({ contract_version: '1' });
     if (url.pathname === '/wp-json/sellio/v1/products') {
@@ -99,6 +107,14 @@ test('connection is saved to the account before returning success; secrets stay 
   assert.equal(stores[0].organization_id, 'organization-1');
   assert.deepEqual(stores[0].credentials, { backend_url: 'https://panel.example.com' });
   assert.equal(records.get(`store:${result.store_id}`).metadata.catalog_token, 'catalog-secret');
+});
+
+test('reconnecting the same WooCommerce site updates one catalog instead of creating duplicates', async () => {
+  const first = await (await handler(request('', 'POST', { name: 'Shop', site_url: 'https://shop.example.com', catalog_token: 'first-secret' }))).json();
+  const second = await (await handler(request('', 'POST', { name: 'Shop', site_url: 'https://shop.example.com', catalog_token: 'second-secret' }))).json();
+  assert.notEqual(first.store_id, second.store_id);
+  assert.equal(stores.length, 1);
+  assert.equal(stores[0].external_id, second.store_id);
 });
 
 test('failed database persistence does not report success or leave an inaccessible new connection', async () => {

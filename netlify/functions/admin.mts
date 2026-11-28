@@ -45,9 +45,19 @@ async function registerConnection(request: Request, userId: string, id: string, 
   if (existing.length) return;
   const memberships = await (await query(`organization_members?user_id=eq.${encodeURIComponent(userId)}&select=organization_id&order=created_at.asc&limit=1`)).json();
   if (!memberships[0]) throw new Error('Nie znaleziono firmy dla tego konta.');
+  const organizationId = memberships[0].organization_id;
+  const siteUrl = String(connection.metadata.site_url || '');
+  const sameCatalog = await (await query(`stores?organization_id=eq.${encodeURIComponent(organizationId)}&provider=eq.woocommerce&site_url=eq.${encodeURIComponent(siteUrl)}&select=id,credentials&order=updated_at.desc&limit=1`)).json();
+  if (sameCatalog[0]) {
+    await query(`stores?id=eq.${encodeURIComponent(sameCatalog[0].id)}`, {
+      method: 'PATCH', headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ external_id: id, name: connection.metadata.name, site_url: siteUrl, credentials: { ...(sameCatalog[0].credentials || {}), backend_url: new URL(request.url).origin } }),
+    });
+    return;
+  }
   await query('stores?on_conflict=organization_id,provider,external_id', {
     method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
-    body: JSON.stringify({ organization_id: memberships[0].organization_id, provider: 'woocommerce', external_id: id, name: connection.metadata.name, site_url: connection.metadata.site_url, credentials: { backend_url: new URL(request.url).origin } }),
+    body: JSON.stringify({ organization_id: organizationId, provider: 'woocommerce', external_id: id, name: connection.metadata.name, site_url: siteUrl, credentials: { backend_url: new URL(request.url).origin } }),
   });
 }
 
