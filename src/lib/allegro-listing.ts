@@ -6,6 +6,7 @@ type Product = Record<string, any>;
 export function initAllegroListing() {
   const root = document.querySelector<HTMLElement>('[data-allegro-listing]');
   if (!root) return;
+  if (!isLocalPreview()) root.querySelector<HTMLDetailsElement>('.al-filter-panel')?.removeAttribute('open');
   const get = <T extends HTMLElement = HTMLElement>(name: string) => root.querySelector<T>(`[data-${name}]`)!;
   const field = (name: string) => get<HTMLInputElement | HTMLSelectElement>(name);
   let stores: WordpressStore[] = [], store: WordpressStore | undefined;
@@ -34,6 +35,15 @@ export function initAllegroListing() {
     const wrapper = text('div', '', 'al-product'); const details = document.createElement('div');
     details.append(text('strong', product.name || 'Bez nazwy'), text('small', `SKU: ${product.sku || '—'} · ID: ${product.id}`));
     wrapper.append(thumbnail(product), details); return wrapper;
+  }
+  function catalogIdentity(product: Product, hasDraft: boolean) {
+    const wrapper = text('div', '', 'al-catalog-product');
+    const title = text('strong', product.name || 'Bez nazwy');
+    if (hasDraft) title.prepend(text('span', '1', 'al-draft-mark'));
+    const identifiers = [product.ean || product.global_unique_id ? `EAN ${product.ean || product.global_unique_id}` : '', product.sku ? `SKU ${product.sku}` : ''].filter(Boolean);
+    wrapper.append(title);
+    if (identifiers.length) wrapper.append(text('small', identifiers.map(value => `[${value}]`).join(' ')));
+    return wrapper;
   }
   const stockKind = (product: Product) => product.stock_status === 'outofstock' || product.stock_quantity === 0 ? 'empty' : Number(product.stock_quantity) > 0 || product.stock_status === 'instock' ? 'available' : 'unknown';
   function filtered() {
@@ -66,16 +76,16 @@ export function initAllegroListing() {
       const id = String(product.id), row = document.createElement('tr'), checkCell = document.createElement('td'), check = document.createElement('input');
       check.type = 'checkbox'; check.disabled = busy; check.checked = selected.has(id); check.setAttribute('aria-label', `Zaznacz ${product.name}`); row.classList.toggle('is-selected', check.checked);
       check.addEventListener('change', () => { if (check.checked) selected.add(id); else selected.delete(id); row.classList.toggle('is-selected', check.checked); updateSelection(); }); checkCell.append(check);
-      const nameCell = document.createElement('td'); nameCell.append(identity(product));
+      const nameCell = document.createElement('td'); nameCell.append(catalogIdentity(product, drafts.has(id)));
       const price = product.price != null && product.price !== '' && Number.isFinite(Number(product.price)) ? `${Number(product.price).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${product.currency || 'PLN'}` : '—';
-      const statusCell = document.createElement('td'); statusCell.append(text('span', drafts.has(id) ? 'Zapisany szkic' : 'Bez szkicu', `al-badge${drafts.has(id) ? ' saved' : ''}`));
-      const actionCell = document.createElement('td'); actionCell.append(button('Formularz wystawiania', () => openEditor([id])));
-      row.append(checkCell, nameCell, text('td', price), text('td', product.stock_quantity == null ? (stockKind(product) === 'available' ? 'Dostępny · ilość nieznana' : '—') : `${product.stock_quantity} szt.`), statusCell, actionCell);
+      const actionCell = document.createElement('td'), action = button('Formularz wystawiania »', () => openEditor([id]), 'al-button al-row-action');
+      action.setAttribute('aria-label', 'Formularz wystawiania'); actionCell.append(action);
+      row.append(checkCell, text('td', id), nameCell, text('td', product.stock_quantity == null ? (stockKind(product) === 'available' ? 'Dostępny' : '—') : `${product.stock_quantity} szt.`), text('td', price), actionCell);
       get('products').append(row);
     }
     get('total').textContent = String(products.length); get('draft-count').textContent = String(products.filter(p => drafts.has(String(p.id))).length);
-    get('results').textContent = busy ? 'Ładowanie produktów i szkiców…' : `Wyniki: ${items.length} z ${products.length} produktów`;
-    get('page-label').textContent = `Strona ${page} z ${pages}`;
+    get('results').textContent = busy ? 'Ładowanie produktów…' : `${Math.min(items.length, page * size)} z ${items.length} pozycji`;
+    get('page-label').textContent = `${page} z ${pages}`;
     get<HTMLButtonElement>('prev').disabled = busy || page <= 1; get<HTMLButtonElement>('next').disabled = busy || page >= pages;
     get('empty').hidden = busy || items.length > 0;
     get('empty-title').textContent = loadFailed ? 'Nie udało się wczytać magazynu' : !store ? 'Wybierz magazyn produktów' : !products.length ? 'Ten magazyn jest pusty' : view === 'drafts' ? 'Brak szkiców dla tych filtrów' : 'Nie znaleziono produktów';
@@ -103,7 +113,7 @@ export function initAllegroListing() {
       products = collected; drafts = new Map(saved.drafts.map((draft: AllegroDraft) => [draft.productId, draft]));
       const categories = new Map<string, string>();
       for (const product of products) for (const category of product.categories || []) categories.set(String(category.id), String(category.name));
-      const select = get<HTMLSelectElement>('category'); select.replaceChildren(new Option('Wszystkie kategorie', ''));
+      const select = get<HTMLSelectElement>('category'); select.replaceChildren(new Option('Pokaż wszystkie produkty', ''));
       for (const [id, name] of [...categories].sort((a, b) => a[1].localeCompare(b[1], 'pl'))) select.add(new Option(name, id));
       feedback('');
     } catch (error) { loadFailed = true; feedback(error instanceof Error ? error.message : 'Nie udało się wczytać danych.', true); }

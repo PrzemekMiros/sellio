@@ -8,19 +8,38 @@ import '../styles/allegro-listing.css';
   <aside class="al-notice"><Icon name="info" size={20} /><div><strong>Przygotuj oferty już teraz</strong><p>Możesz edytować i zapisywać szkice. Konto połączysz w Integracjach. Publikacja oraz pobieranie kategorii i parametrów są przygotowywane w kolejnym etapie.</p></div><a href="/admin/integracje">Integracje <span aria-hidden="true">↗</span></a></aside>
   <p class="al-feedback" data-feedback role="status" aria-live="polite"></p>
   <section data-catalog>
-    <div class="al-card al-source"><label>Magazyn<select data-store aria-label="Magazyn" disabled><option>Ładowanie magazynów…</option></select></label><label>Konto Allegro<select data-allegro-account-select disabled aria-describedby="al-account-note"><option>Sprawdzanie konta…</option></select></label><div class="al-source-note" id="al-account-note"><Icon name="shield" size={17} /><span>Szkice zapisujesz na swoim koncie Sellio.</span></div></div>
+    <div class="al-catalog-top">
+      <div class="al-card al-source">
+        <label><span>Katalog:</span><select data-store aria-label="Katalog" disabled><option>Ładowanie katalogów…</option></select></label>
+        <label><span>Kategoria:</span><select data-category aria-label="Kategoria"><option value="">Pokaż wszystkie produkty</option></select></label>
+      </div>
+      <details class="al-card al-filter-panel" open>
+        <summary><span class="al-filter-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg></span><span>Filtrowanie listy produktów</span><span class="al-chevron" aria-hidden="true">⌄</span></summary>
+        <div class="al-filter-body">
+          <label class="al-search">Szukaj produktu<input data-search type="search" placeholder="Nazwa, SKU, EAN lub ID produktu" /></label>
+          <label>Dostępność<select data-stock aria-label="Dostępność"><option value="">Każdy stan</option><option value="available">Dostępne</option><option value="empty">Brak w magazynie</option><option value="unknown">Nieokreślony stan</option></select></label>
+          <label>Konto Allegro<select data-allegro-account-select disabled aria-describedby="al-account-note"><option>Sprawdzanie konta…</option></select></label>
+          <div class="al-filter-actions"><button class="al-button" data-refresh type="button"><Icon name="activity" size={16} />Odśwież</button><button class="al-button al-reset" type="button" data-reset>Wyczyść filtry</button></div>
+          <div class="al-source-note" id="al-account-note"><Icon name="shield" size={17} /><span>Szkice zapisujesz na swoim koncie Sellio.</span></div>
+        </div>
+      </details>
+    </div>
     <div class="al-card al-catalog-card">
-      <div class="al-list-heading"><div><h2>Produkty z magazynu <span class="al-count" data-total>0</span></h2><p>Przygotuj pojedynczą ofertę lub zaznacz kilka produktów.</p></div><button class="al-button" data-refresh type="button"><Icon name="activity" size={16} />Odśwież</button></div>
-      <div class="al-views" aria-label="Widok produktów"><button type="button" data-view="all" aria-pressed="true">Wszystkie produkty</button><button type="button" data-view="drafts" aria-pressed="false">Zapisane szkice <span data-draft-count>0</span></button></div>
-      <div class="al-filters"><label class="al-search">Szukaj produktu<input data-search type="search" placeholder="Nazwa, SKU, EAN lub ID produktu" /></label><label>Kategoria magazynowa<select data-category aria-label="Kategoria magazynowa"><option value="">Wszystkie kategorie</option></select></label><label>Dostępność<select data-stock aria-label="Dostępność"><option value="">Każdy stan</option><option value="available">Dostępne</option><option value="empty">Brak w magazynie</option><option value="unknown">Nieokreślony stan</option></select></label><button class="al-button al-reset" type="button" data-reset>Wyczyść filtry</button></div>
-      <div class="al-table-tools"><span data-results>Ładowanie produktów…</span><label>Sortuj<select data-sort aria-label="Sortuj"><option value="name">Nazwa A–Z</option><option value="price-asc">Cena rosnąco</option><option value="price-desc">Cena malejąco</option><option value="stock">Stan malejąco</option></select></label></div>
-      <div class="al-table-scroll"><table class="al-table"><thead><tr><th><input type="checkbox" data-select-page aria-label="Zaznacz produkty na tej stronie" /></th><th>Produkt</th><th>Cena magazynowa</th><th>Stan</th><th>Szkic oferty</th><th><span class="sr-only">Akcje</span></th></tr></thead><tbody data-products></tbody></table></div>
+      <div class="al-catalog-toolbar">
+        <div class="al-toolbar-left">
+          <label class="al-select-page"><input type="checkbox" data-select-page aria-label="Zaznacz produkty na tej stronie" /><span>ZAZNACZ…</span><span aria-hidden="true">⌄</span></label>
+          <div class="al-views" aria-label="Widok produktów"><button type="button" data-view="all" aria-pressed="true">WSZYSTKIE</button><button type="button" data-view="drafts" aria-pressed="false" aria-label="Zapisane szkice"><span aria-hidden="true">WYSTAWIONE / NIEWYSTAWIONE</span><span data-draft-count>0</span></button></div>
+          <label class="al-sort"><span>SORTOWANIE</span><select data-sort aria-label="Sortuj"><option value="name">Nazwa A–Z</option><option value="price-asc">Cena rosnąco</option><option value="price-desc">Cena malejąco</option><option value="stock">Stan malejąco</option></select></label>
+        </div>
+        <div class="al-toolbar-right"><span data-results>Ładowanie produktów…</span><span class="sr-only" data-total>0</span><span class="al-toolbar-divider" aria-hidden="true"></span><label>Strona:<span data-page-label>1 z 1</span></label></div>
+      </div>
+      <div class="al-table-scroll"><table class="al-table"><thead><tr><th><span class="sr-only">Zaznacz</span></th><th>ID</th><th>NAZWA PRODUKTU</th><th>STAN</th><th>CENA</th><th>WYSTAW</th></tr></thead><tbody data-products></tbody></table></div>
       <div class="al-empty" data-empty hidden><Icon name="inbox" size={35} /><h3 data-empty-title>Brak produktów</h3><p data-empty-description></p><a data-empty-import href="/admin/produkty/import-eksport">Przejdź do importu produktów →</a></div>
-      <div class="al-pagination"><label>Na stronie<select data-page-size aria-label="Na stronie"><option>25</option><option>50</option><option>100</option></select></label><div><span data-page-label>Strona 1 z 1</span><button class="al-button" type="button" data-prev aria-label="Poprzednia strona">←</button><button class="al-button" type="button" data-next aria-label="Następna strona">→</button></div></div>
+      <div class="al-pagination"><label>Produktów na stronę<select data-page-size aria-label="Na stronie"><option>25</option><option>50</option><option>100</option></select></label><div><button class="al-button" type="button" data-prev aria-label="Poprzednia strona">←</button><button class="al-button" type="button" data-next aria-label="Następna strona">→</button></div></div>
     </div>
     <div class="al-selection">
       <div class="al-selection-summary"><strong data-selected>Zaznaczono: 0</strong><button type="button" class="al-link" data-select-filtered>Zaznacz wszystkie wyniki</button><button type="button" class="al-link" data-clear-selection>Odznacz wszystkie</button><small data-selection-note></small></div>
-      <div class="al-actions"><label>Akcja masowa<select data-batch-action><option value="save">Zapisz jako szkice</option><option value="edit">Edytuj cenę, ilość i ustawienia</option><option value="check">Sprawdź podstawowe dane</option><option value="delete">Usuń zapisane szkice</option></select></label><button type="button" class="al-button al-primary" data-run-batch disabled>Wykonaj</button><button type="button" class="al-button" data-open-selected disabled>Wystaw zaznaczone (formularz) <span aria-hidden="true">→</span></button></div>
+      <div class="al-actions"><label>Akcja masowa<select data-batch-action><option value="save">Zapisz jako szkice</option><option value="edit">Edytuj cenę, ilość i ustawienia</option><option value="check">Sprawdź podstawowe dane</option><option value="delete">Usuń zapisane szkice</option></select></label><button type="button" class="al-button" data-run-batch disabled>Wykonaj</button><button type="button" class="al-button al-primary al-open-selected" data-open-selected disabled><span class="al-play" aria-hidden="true">▷</span>Wystaw zaznaczone (formularz)</button></div>
     </div>
     <section class="al-card al-batch-report" data-batch-report hidden aria-labelledby="al-batch-title"><h3 id="al-batch-title" tabindex="-1">Wynik akcji masowej</h3><p data-batch-summary role="status" aria-live="polite"></p><progress data-batch-progress value="0" max="1" aria-label="Postęp akcji masowej"></progress><ul data-batch-errors></ul><button class="al-button" type="button" data-retry-batch hidden>Ponów nieudane</button></section>
   </section>

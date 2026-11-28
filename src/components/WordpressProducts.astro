@@ -10,7 +10,6 @@ const editorTabs = [
 <section class="wordpress-products" aria-labelledby="wordpress-products-title">
   <div class="products-heading">
     <div><span class="eyebrow">KATALOG PRODUKTÓW</span><h2 id="wordpress-products-title">Lista produktów</h2><p>Produkty ze wszystkich połączonych kanałów sprzedaży w jednym miejscu.</p></div>
-    <div class="products-heading-actions"><a href="/admin/integracje" class="products-filter-button"><Icon name="sliders" size={17} />Integracje</a><button class="button button-primary" type="button" data-products-refresh><Icon name="box" size={16} />Odśwież produkty</button></div>
   </div>
   <form data-products-form hidden><input name="backend_url" type="hidden" /><input name="store_id" type="hidden" /></form>
   <p class="integration-feedback" role="status" data-products-feedback></p>
@@ -71,7 +70,7 @@ const editorTabs = [
         <dl class="product-editor-details" data-editor-information></dl>
       </section>
       <section class="product-editor-panel" role="tabpanel" id="product-panel-media" aria-labelledby="product-tab-media" data-editor-panel="media" hidden>
-        <div class="product-panel-heading"><h3>Media produktu</h3><p>Podgląd zdjęć zaimportowanych z WooCommerce. Galerię zmienisz w sklepie źródłowym.</p></div>
+        <p class="sr-only">Galeria zdjęć produktu zaimportowanych z WooCommerce.</p>
         <div class="product-editor-gallery" data-editor-media></div>
       </section>
       <section class="product-editor-panel" role="tabpanel" id="product-panel-variants" aria-labelledby="product-tab-variants" data-editor-panel="variants" hidden>
@@ -99,7 +98,6 @@ const editorTabs = [
   const result = document.querySelector<HTMLElement>('[data-products-result]')!;
   const body = document.querySelector<HTMLTableSectionElement>('[data-products-body]')!;
   const count = document.querySelector<HTMLElement>('[data-products-count]')!;
-  const refresh = document.querySelector<HTMLButtonElement>('[data-products-refresh]')!;
   const search = document.querySelector<HTMLInputElement>('[data-products-search]')!;
   const sort = document.querySelector<HTMLSelectElement>('[data-products-sort]')!;
   const perPage = document.querySelector<HTMLSelectElement>('[data-products-per-page]')!;
@@ -162,15 +160,26 @@ const editorTabs = [
       variantsTarget.append(list);
     } else { const empty = document.createElement('p'); empty.className = 'product-editor-empty'; empty.textContent = product.type === 'variable' ? 'Brak wariantów w aktualnie załadowanym katalogu.' : product.type === 'variation' ? 'Ten produkt jest wariantem. Produkt nadrzędny znajdziesz w zakładce Relacje.' : 'Ten produkt nie ma załadowanych wariantów.'; variantsTarget.append(empty); }
     const gallery = editor.querySelector<HTMLElement>('[data-editor-media]')!; gallery.replaceChildren();
-    const images = Array.isArray(product.images) ? product.images : [];
-    for (const [index, image] of images.entries()) {
-      let url: URL; try { url = new URL(image.url); } catch { continue; }
-      if (!['https:', 'http:'].includes(url.protocol)) continue;
-      const figure = document.createElement('figure'); const img = document.createElement('img'); const caption = document.createElement('figcaption');
-      img.src = url.href; img.alt = image.alt || product.name || ''; img.loading = 'lazy';
-      caption.textContent = index === 0 ? 'Zdjęcie główne' : `Zdjęcie ${index + 1}`; figure.append(img, caption); gallery.append(figure);
+    const images: Array<{ url: string; alt?: string }> = (Array.isArray(product.images) ? product.images : []).flatMap((image: Record<string, any>) => {
+      try { const url = new URL(image.url); return ['https:', 'http:'].includes(url.protocol) ? [{ url: url.href, alt: typeof image.alt === 'string' ? image.alt : '' }] : []; } catch { return []; }
+    }).slice(0, 16);
+    for (let index = 0; index < 16; index++) {
+      const slot = document.createElement('div'); slot.className = 'product-media-slot';
+      const number = document.createElement('span'); number.className = 'product-media-number'; number.textContent = String(index + 1); slot.append(number);
+      const image = images[index];
+      if (image) {
+        slot.classList.add('has-image'); const img = document.createElement('img'); const source = document.createElement('span');
+        img.src = image.url; img.alt = image.alt || `${product.name || 'Produkt'} — zdjęcie ${index + 1}`; img.loading = 'lazy';
+        source.className = 'product-media-source'; source.textContent = 'zewnętrzne'; slot.append(img, source);
+      } else {
+        const add = document.createElement('button'); const plus = document.createElement('span'); const label = document.createElement('span');
+        add.type = 'button'; add.className = 'product-media-add'; add.setAttribute('aria-label', `Dodaj zdjęcie ${index + 1}`);
+        plus.className = 'product-media-plus'; plus.textContent = '+'; label.textContent = 'Dodaj'; add.append(plus, label);
+        add.addEventListener('click', () => { editorFeedback.textContent = 'Dodaj zdjęcie w WooCommerce, a następnie ponownie zaimportuj produkt do Sellio.'; });
+        slot.append(add);
+      }
+      gallery.append(slot);
     }
-    if (!gallery.children.length) { const empty = document.createElement('p'); empty.className = 'product-editor-empty'; empty.textContent = 'Ten produkt nie ma zaimportowanych zdjęć.'; gallery.append(empty); }
   }
   let currentConnection: { backend_url: string; store_id: string } | null = null;
   async function savedConnection() {
@@ -242,13 +251,6 @@ const editorTabs = [
       products = data.products; catalogTotal = Number(data.total) || data.products.length; currentPage = 1; selectedProducts.clear(); renderProducts();
       result.hidden = false; feedback.textContent = data.products.length ? '' : 'Produkty nie zostały jeszcze zaimportowane. Otwórz Integracje i utwórz połączenie ponownie albo przejdź do Import/Eksport.';
     } catch (error) { feedback.textContent = error instanceof TypeError ? 'Nie można połączyć się z backendem. Sprawdź adres połączenia w Integracjach.' : error instanceof Error ? error.message : 'Wystąpił nieznany błąd.'; }
-  });
-  refresh.addEventListener('click', async () => {
-    try {
-      const saved = await savedConnection();
-      if (!saved) { feedback.textContent = 'Najpierw skonfiguruj połączenie WooCommerce w zakładce Integracje.'; return; }
-      for (const [name, value] of Object.entries(saved)) (form.elements.namedItem(name) as HTMLInputElement).value = String(value); form.requestSubmit();
-    } catch { feedback.textContent = 'Nie udało się pobrać konfiguracji integracji. Otwórz Integracje i zapisz połączenie ponownie.'; }
   });
   search.addEventListener('input', () => { currentPage = 1; renderProducts(); });
   sort.addEventListener('change', () => { currentPage = 1; renderProducts(); });
