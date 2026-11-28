@@ -45,7 +45,7 @@ test('filters, selection, bulk changes and drafts survive reload without changin
   await page.getByRole('button', { name: 'Formularz wystawiania', exact: true }).first().click();
   await expect(page.locator('[data-field=title]')).toHaveValue('Nowy tytuł lampy');
   await expect(page.locator('[data-field=categoryId]')).toHaveValue('12345');
-  await expect(page.getByRole('button', { name: 'Opublikuj na Allegro' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Opublikuj na Allegro' })).toBeEnabled();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('sellio-local-preview-v1')!).products[0].price)).toBe('120.00');
   expect(errors).toEqual([]);
 });

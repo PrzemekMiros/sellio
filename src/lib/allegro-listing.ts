@@ -13,7 +13,7 @@ export function initAllegroListing() {
   let products: Product[] = [], drafts = new Map<string, AllegroDraft>();
   let selected = new Set<string>(), editing: AllegroDraft[] = [];
   let pendingEditorIds: string[] = [];
-  let page = 1, view = 'all', busy = false, dirty = false, loadFailed = false;
+  let page = 1, view = 'all', busy = false, dirty = false, loadFailed = false, allegroConnected = false;
   let retryBatch: { action: string; ids: string[] } | null = null;
   const feedback = (message: string, error = false) => { get('feedback').textContent = message; get('feedback').dataset.error = String(error); };
   const text = (tag: string, value: string, className = '') => { const element = document.createElement(tag); element.textContent = value; element.className = className; return element; };
@@ -267,6 +267,30 @@ export function initAllegroListing() {
       feedback(dirty ? 'Nie wszystkie szkice zostały zapisane. Szczegóły znajdują się przy produktach.' : 'Zapisano szkice. Możesz wrócić do nich po odświeżeniu strony.', dirty);
     } finally { busy = false; controls.forEach(control => control.disabled = false); }
   });
+  get('publish').addEventListener('click', async () => {
+    if (busy) return;
+    if (!allegroConnected) { feedback('Połącz konto Allegro w zakładce Integracje.', true); return; }
+    if (dirty || editing.some(draft => !drafts.has(draft.productId))) { feedback('Najpierw zapisz wszystkie szkice.', true); return; }
+    const invalid = editing.map((draft, index) => ({ index, issues: draftIssues(draft) })).filter(item => item.issues.length);
+    if (invalid.length) { invalid.forEach(item => cardFeedback(item.index, `Do uzupełnienia: ${item.issues.join(', ')}.`)); feedback('Uzupełnij wymagane dane przed publikacją.', true); return; }
+    if (!window.confirm(`Opublikować ${editing.length} ${editing.length === 1 ? 'ofertę' : 'oferty'} na połączonym koncie Allegro? Ta operacja może naliczyć opłaty zgodnie z cennikiem Allegro.`)) return;
+    busy = true;
+    const controls = Array.from(get('editor').querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLSelectElement | HTMLTextAreaElement>('input,button,select,textarea')).filter(control => !control.disabled);
+    controls.forEach(control => control.disabled = true); get('save-state').textContent = 'Publikowanie ofert…';
+    let published = 0;
+    try {
+      for (const [index, draft] of editing.entries()) {
+        try {
+          const result = await api(`${base()}/${encodeURIComponent(draft.productId)}?action=publish`, { method: 'POST' });
+          const id = result.publication?.offerId;
+          if (!id) throw new Error('Brak identyfikatora oferty w odpowiedzi.');
+          published++; cardFeedback(index, `${result.alreadyPublished ? 'Oferta była już utworzona' : 'Przekazano do publikacji'} · Allegro ID: ${id}.`);
+        } catch (error) { cardFeedback(index, `Nie opublikowano: ${(error as Error).message}`); }
+      }
+      get('save-state').textContent = `Przekazano do publikacji: ${published} z ${editing.length}`;
+      feedback(published === editing.length ? 'Oferty zostały przekazane do Allegro. Status aktywacji może zostać nadany asynchronicznie.' : 'Nie wszystkie oferty zostały opublikowane. Popraw wskazane dane i spróbuj ponownie.', published !== editing.length);
+    } finally { busy = false; controls.forEach(control => control.disabled = false); }
+  });
   get<HTMLFormElement>('bulk').addEventListener('submit', event => {
     event.preventDefault(); const data = new FormData(get<HTMLFormElement>('bulk'));
     const category = String(data.get('category') || ''), quantity = String(data.get('quantity') || ''), percent = String(data.get('percent') || ''), price = String(data.get('price') || ''), condition = String(data.get('condition') || '');
@@ -358,6 +382,7 @@ export function initAllegroListing() {
   void authenticatedFetch('/v1/admin/allegro/status').then(async response => {
     if (!response.ok) throw new Error('Status unavailable');
     const status = await response.json();
+    allegroConnected = Boolean(status.connected && !status.reconnect);
     const label = status.connected && status.account ? `${status.account.login}${status.reconnect ? ' — odnów połączenie' : ' · Allegro.pl'}` : 'Połącz konto w Integracjach';
     get<HTMLSelectElement>('allegro-account-select').replaceChildren(new Option(label, status.account?.id || ''));
   }).catch(() => get<HTMLSelectElement>('allegro-account-select').replaceChildren(new Option('Sprawdź połączenie w Integracjach', '')));

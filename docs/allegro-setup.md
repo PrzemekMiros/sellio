@@ -6,7 +6,7 @@ Konto sprzedawcy i aplikacja API to osobne elementy. Właściciel Sellio rejestr
 
 1. Zarejestruj aplikację webową Sellio korzystającą z Authorization Code flow.
 2. Ustaw dokładny Redirect URI: `https://allsellio.netlify.app/api/allegro/callback` (bez końcowego ukośnika).
-3. Włącz „Odczyt danych konta”: `allegro:api:profile:read`. Obecne połączenie prosi wyłącznie o ten zakres, potrzebny do `GET /me`. Uprawnienia ofert, ustawień sprzedaży i zamówień będą dodane wraz z wdrożeniem tych funkcji i ponowną zgodą użytkownika. Po błędzie `invalid_scope` sprawdź, czy uprawnienie zostało zapisane w produkcyjnej aplikacji AlSellio, której Client ID jest ustawiony w Netlify, a następnie rozpocznij nową próbę w Sellio.
+3. Włącz zakresy `allegro:api:profile:read`, `allegro:api:sale:offers:read`, `allegro:api:sale:offers:write` oraz `allegro:api:sale:settings:read`. Istniejące połączenia trzeba autoryzować ponownie, aby publikowanie ofert otrzymało nowe uprawnienia. Po błędzie `invalid_scope` sprawdź, czy wszystkie zakresy zapisano w produkcyjnej aplikacji AlSellio, której Client ID jest ustawiony w Netlify.
 4. W Netlify → allsellio → Environment variables dodaj `ALLEGRO_CLIENT_ID` i `ALLEGRO_CLIENT_SECRET`. Ustaw kontekst Production i oznacz sekret jako secret. Jeśli plan pozwala, ogranicz zakres do Functions; w planie bez wyboru zakresów pozostaw domyślne zakresy dla sekretów. Nie wklejaj sekretu do czatu ani plików repozytorium.
 5. `ALLEGRO_TOKEN_ENCRYPTION_KEY` musi zawierać 32 losowe bajty w Base64. Sprawdź, czy został już skonfigurowany, zanim wygenerujesz nowy. Nie zastępuj istniejącego klucza: służy do odszyfrowania zapisanych połączeń.
 6. Wdróż ponownie funkcje Netlify, aby dostały nowe zmienne środowiskowe.
@@ -25,6 +25,7 @@ Wymagania Allegro: https://developer.allegro.pl/tutorials/informacje-podstawowe-
 
 - Dane są przypisane do użytkownika Sellio. Jedno konto Allegro na użytkownika; ponowna autoryzacja zastępuje je dopiero po udanym zapisie.
 - Tokeny i dane przepływu są szyfrowane AES-256-GCM, z identyfikatorem użytkownika jako AAD, w trwałym magazynie Netlify Blobs `sellio-allegro`. Nie trafiają do klienta ani localStorage.
+- Publikacja korzysta z `POST /sale/product-offers`. Przed wysłaniem Sellio zapisuje blokadę publikacji przypisaną do użytkownika, magazynu i produktu. Przy niepewnym wyniku połączenia nie ponawia automatycznie żądania, ponieważ ponowny POST mógłby utworzyć duplikat.
 - OAuth stosuje PKCE S256, losowy state, jednorazowe wykorzystanie state oraz cookie Secure/HttpOnly/SameSite=Lax. Sesja łączenia jest ważna 10 minut.
 - Wymiana kodu z PKCE wysyła `client_id` i `code_verifier` w formularzu, bez nagłówka Basic, zgodnie z aktualnym poradnikiem Allegro. Odświeżanie tokenów nadal używa Basic z Client ID i Client Secret.
 - Błędy powrotu OAuth pokazują bezpieczny kod przyczyny i losowy identyfikator diagnostyczny. Log funkcji `allegro-callback` zawiera tylko te wartości i status HTTP; nie zapisuje kodów autoryzacji, tokenów, cookies, treści błędów dostawcy ani danych konta.

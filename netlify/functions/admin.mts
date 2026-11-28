@@ -3,6 +3,7 @@ import type { Config } from '@netlify/functions';
 import { createHash, randomBytes } from 'node:crypto';
 import { normalizeDraft } from '../../src/lib/allegro-drafts.ts';
 import { AllegroOAuth, AllegroError, oauthCookie } from '../lib/allegro-oauth.ts';
+import { publishOffer } from '../lib/allegro-offers.ts';
 
 type Connection = { secret_hash: string; owner_id?: string; metadata: Record<string, unknown>; created_at: string; updated_at: string };
 const blobs = getStore('sellio-connector');
@@ -144,6 +145,26 @@ export default async (request: Request) => {
   if (draftMatch) {
     if (!await findOwned(draftMatch[1], user.id)) return json({ error: 'Nie znaleziono magazynu.' }, 404);
     const prefix = `allegro-draft:${user.id}:${draftMatch[1]}:`;
+    if (request.method === 'POST' && draftMatch[2] && url.searchParams.get('action') === 'publish') {
+      const draft = await draftBlobs.get(`${prefix}${draftMatch[2]}`, { type: 'json' });
+      if (!draft) return json({ error: 'Zapisz szkic przed publikacją.' }, 404);
+      const publicationKey = `allegro-publication:${user.id}:${draftMatch[1]}:${draftMatch[2]}`;
+      const existing = await draftBlobs.get(publicationKey, { type: 'json' }) as Record<string, unknown> | null;
+      if (existing?.offerId) return json({ publication: existing, alreadyPublished: true });
+      if (existing?.state === 'submitting' || existing?.state === 'unknown') return json({ error: 'Poprzednia publikacja ma niepewny wynik. Sprawdź oferty na koncie Allegro przed ponowieniem.' }, 409);
+      const claimed = await draftBlobs.setJSON(publicationKey, { state: 'submitting', startedAt: new Date().toISOString() }, { onlyIfNew: true });
+      if (!claimed.modified) return json({ error: 'Publikacja tego szkicu już trwa.' }, 409);
+      try {
+        const publication = await publishOffer(new AllegroOAuth(), user.id, draftMatch[1], normalizeDraft(draft));
+        const saved = { ...publication, state: 'submitted', productId: draftMatch[2] };
+        await draftBlobs.setJSON(publicationKey, saved);
+        return json({ publication: saved }, 201);
+      } catch (error) {
+        if (error instanceof AllegroError && error.upstreamStatus) await draftBlobs.delete(publicationKey);
+        else await draftBlobs.setJSON(publicationKey, { state: 'unknown', startedAt: new Date().toISOString() });
+        return json({ error: error instanceof AllegroError ? error.message : 'Nie udało się opublikować oferty.' }, error instanceof AllegroError ? error.status : 503);
+      }
+    }
     if (request.method === 'GET' && !draftMatch[2]) {
       try {
         const entries = await draftBlobs.list({ prefix });

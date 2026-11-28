@@ -2,9 +2,8 @@ import { getStore } from '@netlify/blobs';
 import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { AllegroErrorCode } from '../../src/lib/allegro-errors.ts';
 
-// Request only permissions used by implemented API calls (currently GET /me).
-// Add sales/order scopes when those features are implemented and consent is renewed.
-const scopes = ['allegro:api:profile:read'];
+// Keep consent limited to the profile and the offer/settings calls used by Sellio.
+const scopes = ['allegro:api:profile:read', 'allegro:api:sale:offers:read', 'allegro:api:sale:offers:write', 'allegro:api:sale:settings:read'];
 const cookieName = '__Host-sellio-allegro-oauth';
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 type Tokens = { access_token: string; refresh_token: string; expiresAt: number };
@@ -146,6 +145,26 @@ export class AllegroOAuth {
       await this.write(userId, { ...clean, reconnect: error instanceof AllegroError && error.status === 401 }, lock).catch(() => {});
       throw error;
     }
+  }
+  async api(userId: string, path: string, init: RequestInit = {}) {
+    if (!path.startsWith('/')) throw new AllegroError('Nieprawidłowy adres API Allegro.', 500);
+    let token = await this.activeToken(userId);
+    const request = async (accessToken: string) => this.fetcher(`https://api.allegro.pl${path}`, {
+      ...init,
+      redirect: 'error',
+      signal: init.signal ?? AbortSignal.timeout(20000),
+      headers: { Accept: 'application/vnd.allegro.public.v1+json', 'Content-Type': 'application/vnd.allegro.public.v1+json',
+        'User-Agent': this.config.userAgent, 'Accept-Language': 'pl-PL', ...init.headers, Authorization: `Bearer ${accessToken}` }
+    });
+    let response: Response;
+    try { response = await request(token); }
+    catch { throw new AllegroError('Nie udało się połączyć z API Allegro. Nie ponawiaj publikacji automatycznie.', 502, 'profile_network'); }
+    if (response.status === 401) {
+      token = await this.activeToken(userId, token);
+      try { response = await request(token); }
+      catch { throw new AllegroError('Nie udało się połączyć z API Allegro. Nie ponawiaj publikacji automatycznie.', 502, 'profile_network'); }
+    }
+    return response;
   }
   async check(userId: string) {
     let token = await this.activeToken(userId), account: Account;
