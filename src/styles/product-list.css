@@ -123,6 +123,41 @@
   cursor: pointer;
 }
 .product-more-button:hover { border-color: var(--accent); color: var(--accent); }
+.product-more-button[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.product-row-menu {
+  position: fixed;
+  z-index: 1200;
+  display: grid;
+  width: min(248px, calc(100vw - 24px));
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 18px 45px #11182735;
+}
+.product-row-menu[hidden] { display: none; }
+.product-row-menu button {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 6px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: .875rem;
+  text-align: left;
+  cursor: pointer;
+}
+.product-row-menu button:hover,
+.product-row-menu button:focus-visible { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); outline: 0; }
+.product-row-menu .product-menu-delete { color: #c83b32; }
+.product-row-menu .product-menu-delete:hover,
+.product-row-menu .product-menu-delete:focus-visible { color: #e0493f; background: #e0493f12; }
+.product-row-menu svg { flex-shrink: 0; }
 .products-pagination { display: flex; justify-content: center; align-items: center; gap: 8px; min-height: 58px; border-top: 1px solid var(--border); }
 .products-pagination button,
 .products-pagination span { display: grid; min-width: 36px; height: 36px; place-items: center; border-radius: 6px; }
@@ -136,6 +171,7 @@
 :root[data-theme="dark"] .integration-pill-status { color: #ffd6ba; background: #674025; }
 :root[data-theme="dark"] .integration-pill-status.status-publish { color: #ffe3c2; background: #70491f; }
 :root[data-theme="dark"] .integration-pill-status.status-draft { color: #d2d7dd; background: #424852; }
+:root[data-theme="dark"] .product-row-menu { border-color: #555c66; background: #30353c; box-shadow: 0 18px 45px #0009; }
 
 @media (max-width: 760px) {
   .products-heading { align-items: flex-start; flex-direction: column; padding: 20px; }

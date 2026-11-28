@@ -25,6 +25,10 @@ const paths: Record<string, string> = {
  shield: 'M12 3l8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3z M8 12l3 3 5-6',
  inbox: 'M5 4h14l3 12v5H2v-5L5 4z M2 16h6l2 3h4l2-3h6 M8 9h8 M10 12h4',
  check: 'M5 12l4 4L19 6', store: 'M3 10l2-7h14l2 7 M3 10v11h18V10 M2 10h20 M9 21v-7h6v7',
+ edit: 'M4 20h4L19 9l-4-4L4 16v4z M13 7l4 4',
+ link: 'M10 13a5 5 0 007 0l2-2a5 5 0 00-7-7l-1 1 M14 11a5 5 0 00-7 0l-2 2a5 5 0 007 7l1-1',
+ copy: 'M8 8h12v12H8z M4 16V4h12',
+ trash: 'M4 7h16 M9 7V4h6v3 M7 7l1 14h8l1-14 M10 11v6 M14 11v6',
 };
 ---
 <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={paths[name] ?? paths.box} /></svg>

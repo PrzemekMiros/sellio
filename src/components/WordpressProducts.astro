@@ -30,6 +30,15 @@ const editorTabs = [
     <div class="products-pagination"><button type="button" data-products-prev aria-label="Poprzednia strona">‹</button><span data-products-page>1</span><button type="button" data-products-next aria-label="Następna strona">›</button></div>
   </div>
 </section>
+<div class="product-row-menu" id="product-row-menu" role="menu" aria-label="Akcje produktu" data-product-row-menu hidden>
+  <button type="button" role="menuitem" data-tid="editProduct" data-product-menu-action="edit"><Icon name="edit" size={18} /><span>Edytuj</span></button>
+  <button type="button" role="menuitem" data-tid="productAssociations" data-product-menu-action="associations"><Icon name="link" size={18} /><span>Powiązania</span></button>
+  <button type="button" role="menuitem" data-tid="productReservations" data-product-menu-action="reservations"><Icon name="store" size={18} /><span>Rezerwacje</span></button>
+  <button type="button" role="menuitem" data-tid="productPurchaseOrders" data-product-menu-action="deliveries"><Icon name="truck" size={18} /><span>Dostawy</span></button>
+  <button type="button" role="menuitem" data-tid="productLogs" data-product-menu-action="history"><Icon name="file" size={18} /><span>Historia</span></button>
+  <button type="button" role="menuitem" data-tid="duplicateProduct" data-product-menu-action="duplicate"><Icon name="copy" size={18} /><span>Duplikuj</span></button>
+  <button type="button" role="menuitem" class="product-menu-delete" data-tid="deleteProduct" data-product-menu-action="delete"><Icon name="trash" size={18} /><span>Usuń</span></button>
+</div>
 <dialog class="product-editor" data-product-editor aria-labelledby="product-editor-title">
   <form method="dialog" class="product-editor-header"><div><span class="eyebrow">EDYCJA PRODUKTU</span><h2 id="product-editor-title" data-editor-title>Produkt</h2></div><button class="icon-button" value="cancel" aria-label="Zamknij edycję">×</button></form>
   <div class="product-editor-tabs" role="tablist" aria-label="Sekcje edycji produktu">
@@ -99,6 +108,8 @@ const editorTabs = [
   const pageLabel = document.querySelector<HTMLElement>('[data-products-page]')!;
   const previousPage = document.querySelector<HTMLButtonElement>('[data-products-prev]')!;
   const nextPage = document.querySelector<HTMLButtonElement>('[data-products-next]')!;
+  const rowMenu = document.querySelector<HTMLElement>('[data-product-row-menu]')!;
+  const rowMenuItems = Array.from(rowMenu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'));
   const editor = document.querySelector<HTMLDialogElement>('[data-product-editor]')!;
   const editorForm = document.querySelector<HTMLFormElement>('[data-product-editor-form]')!;
   const editorTitle = document.querySelector<HTMLElement>('[data-editor-title]')!;
@@ -171,6 +182,51 @@ const editorTabs = [
   let catalogTotal = 0;
   let currentPage = 1;
   const selectedProducts = new Set<string>();
+  let menuProduct: Record<string, any> | null = null;
+  let menuTrigger: HTMLButtonElement | null = null;
+  function closeRowMenu(restoreFocus = false) {
+    if (rowMenu.hidden) return;
+    rowMenu.hidden = true;
+    rowMenu.style.removeProperty('top'); rowMenu.style.removeProperty('left');
+    menuTrigger?.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) menuTrigger?.focus();
+    menuProduct = null; menuTrigger = null;
+  }
+  function openRowMenu(trigger: HTMLButtonElement, product: Record<string, any>) {
+    if (!rowMenu.hidden && menuTrigger === trigger) { closeRowMenu(true); return; }
+    closeRowMenu(); menuProduct = product; menuTrigger = trigger;
+    trigger.setAttribute('aria-expanded', 'true'); rowMenu.hidden = false;
+    const triggerRect = trigger.getBoundingClientRect(); const menuRect = rowMenu.getBoundingClientRect(); const gap = 8; const edge = 12;
+    const top = triggerRect.bottom + gap + menuRect.height <= window.innerHeight - edge ? triggerRect.bottom + gap : triggerRect.top - menuRect.height - gap;
+    const left = Math.min(window.innerWidth - menuRect.width - edge, Math.max(edge, triggerRect.right - menuRect.width));
+    rowMenu.style.top = `${Math.max(edge, top)}px`; rowMenu.style.left = `${left}px`;
+  }
+  rowMenu.addEventListener('click', event => {
+    const item = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-product-menu-action]');
+    if (!item || !menuProduct) return;
+    const product = menuProduct; const action = item.dataset.productMenuAction; closeRowMenu();
+    if (action === 'edit') openEditor(product, 'product');
+    else if (action === 'associations') openEditor(product, 'relations');
+    else if (action === 'reservations') openEditor(product, 'sales');
+    else if (action === 'deliveries') feedback.textContent = 'Obsługa dostaw produktu nie jest jeszcze dostępna w Sellio.';
+    else if (action === 'history') openEditor(product, 'information');
+    else if (action === 'duplicate') feedback.textContent = 'Duplikowanie produktów nie jest jeszcze dostępne w Sellio.';
+    else if (action === 'delete') feedback.textContent = 'Usuwanie produktów nie jest jeszcze obsługiwane przez połączony katalog.';
+  });
+  rowMenu.addEventListener('keydown', event => {
+    const index = rowMenuItems.indexOf(document.activeElement as HTMLButtonElement); let next = index;
+    if (event.key === 'ArrowDown') next = (index + 1) % rowMenuItems.length;
+    else if (event.key === 'ArrowUp') next = (index - 1 + rowMenuItems.length) % rowMenuItems.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = rowMenuItems.length - 1;
+    else if (event.key === 'Escape') { event.preventDefault(); closeRowMenu(true); return; }
+    else return;
+    event.preventDefault(); rowMenuItems[next].focus();
+  });
+  document.addEventListener('click', event => { if (!rowMenu.hidden && !rowMenu.contains(event.target as Node) && event.target !== menuTrigger) closeRowMenu(); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !rowMenu.hidden) { event.preventDefault(); closeRowMenu(true); } });
+  document.addEventListener('scroll', () => closeRowMenu(), true);
+  window.addEventListener('resize', () => closeRowMenu());
   form.addEventListener('submit', async event => {
     event.preventDefault(); result.hidden = true; feedback.textContent = 'Pobieram produkty…';
     const input = new FormData(form); const url = String(input.get('backend_url')).trim().replace(/\/$/, '');
@@ -234,7 +290,9 @@ const editorTabs = [
       const stockCell = document.createElement('td'); stockCell.className = 'product-stock'; const stock = product.stock_quantity; stockCell.textContent = stock === null || stock === undefined ? '—' : `${stock} szt.`; if (Number(stock) <= 0) stockCell.classList.add('is-empty');
       const priceCell = document.createElement('td'); priceCell.className = 'product-price'; priceCell.textContent = product.price ? `${product.price} ${product.currency ?? ''}`.trim() : '—';
       const integrationsCell = document.createElement('td'); integrationsCell.className = 'product-integrations'; const wooBadge = document.createElement('span'); wooBadge.className = 'integration-pill integration-pill-woo'; wooBadge.textContent = 'WooCommerce'; const statusBadge = document.createElement('span'); statusBadge.className = `integration-pill integration-pill-status status-${product.status || 'unknown'}`; statusBadge.textContent = ({ publish: 'Aktywny', draft: 'Szkic', private: 'Prywatny', pending: 'Oczekujący' } as Record<string, string>)[product.status] || product.status || 'Zaimportowany'; integrationsCell.append(wooBadge, statusBadge);
-      const actionCell = document.createElement('td'); actionCell.className = 'products-actions-column'; const editButton = document.createElement('button'); editButton.type = 'button'; editButton.className = 'product-more-button'; editButton.textContent = '•••'; editButton.setAttribute('aria-label', 'Otwórz menu edycji produktu'); editButton.title = product.name || 'Produkt'; editButton.addEventListener('click', () => openEditor(product)); actionCell.append(editButton);
+      const actionCell = document.createElement('td'); actionCell.className = 'products-actions-column'; const editButton = document.createElement('button'); editButton.type = 'button'; editButton.className = 'product-more-button'; editButton.textContent = '•••'; editButton.setAttribute('aria-label', 'Otwórz menu edycji produktu'); editButton.setAttribute('aria-haspopup', 'menu'); editButton.setAttribute('aria-expanded', 'false'); editButton.setAttribute('aria-controls', 'product-row-menu'); editButton.title = product.name || 'Produkt';
+      editButton.addEventListener('click', event => { event.stopPropagation(); openRowMenu(editButton, product); });
+      editButton.addEventListener('keydown', event => { if (event.key === 'ArrowDown') { event.preventDefault(); openRowMenu(editButton, product); rowMenuItems[0]?.focus(); } }); actionCell.append(editButton);
       row.append(checkCell, imageCell, productCell, stockCell, priceCell, integrationsCell, actionCell); body.append(row);
     }
     const visibleIds = visible.map(product => String(product.id)); const selectedVisible = visibleIds.filter(id => selectedProducts.has(id)).length;
@@ -242,10 +300,10 @@ const editorTabs = [
     selectedLabel.textContent = `${selectedProducts.size} zaznaczonych`; count.textContent = search.value ? `${filtered.length} wyników` : `${catalogTotal} produktów`;
     pageLabel.textContent = `${currentPage} / ${pageCount}`; previousPage.disabled = currentPage <= 1; nextPage.disabled = currentPage >= pageCount;
   }
-  function openEditor(product: Record<string, any>) {
+  function openEditor(product: Record<string, any>, initialTab = 'product') {
     editorForm.reset(); editorFeedback.textContent = ''; editorTitle.textContent = product.name || 'Produkt';
     for (const [name, value] of Object.entries(product)) { const input = editorForm.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null; if (input) input.value = value ?? ''; }
-    renderProductDetails(product); selectTab('product');
+    renderProductDetails(product); selectTab(initialTab);
     editor.showModal();
   }
   document.querySelector<HTMLElement>('[data-editor-cancel]')!.addEventListener('click', () => editor.close());
