@@ -35,7 +35,7 @@ const permissions = [
         <li>Po powrocie do Sellio sprawdź wyświetlony login i użyj przycisku „Sprawdź połączenie”.</li>
       </ol>
       <h2>API i uprawnienia</h2>
-      <p>Poniższe zakresy są objęte konfiguracją autoryzacji aplikacji. Część jest przeznaczona dla planowanych funkcji, które nie są jeszcze dostępne do weryfikacji.</p>
+      <p>Obecne połączenie prosi wyłącznie o <code>allegro:api:profile:read</code> — odczyt danych konta. Pozostałe zakresy w tabeli dotyczą planowanych funkcji i nie są teraz żądane. Ich uruchomienie będzie wymagało rozszerzenia uprawnień aplikacji i ponownej zgody użytkownika.</p>
       <div class="table-wrap"><table><thead><tr><th>Zakres OAuth</th><th>Funkcja</th><th>Wykorzystanie</th></tr></thead><tbody>{permissions.map(([scope, name, purpose]) => <tr><td><code>{scope}</code></td><td>{name}</td><td>{purpose}</td></tr>)}</tbody></table></div>
       <h2>Dostęp i bezpieczeństwo danych</h2>
       <p>Panel wymaga zalogowania. Tokeny OAuth są przechowywane po stronie serwera w trwałym magazynie Netlify Blobs, zaszyfrowane AES-256-GCM i przypisane do użytkownika Sellio. Tokeny Allegro nie są udostępniane przeglądarce ani przechowywane w localStorage. Dostęp jest automatycznie odnawiany, dopóki zgoda Allegro pozostaje ważna.</p>

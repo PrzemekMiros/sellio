@@ -2,7 +2,9 @@ import { getStore } from '@netlify/blobs';
 import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { AllegroErrorCode } from '../../src/lib/allegro-errors.ts';
 
-const scopes = ['allegro:api:profile:read', 'allegro:api:sale:offers:read', 'allegro:api:sale:offers:write', 'allegro:api:sale:settings:read', 'allegro:api:orders:read'];
+// Request only permissions used by implemented API calls (currently GET /me).
+// Add sales/order scopes when those features are implemented and consent is renewed.
+const scopes = ['allegro:api:profile:read'];
 const cookieName = '__Host-sellio-allegro-oauth';
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 type Tokens = { access_token: string; refresh_token: string; expiresAt: number };

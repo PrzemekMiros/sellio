@@ -11,7 +11,8 @@ export function initAllegroListing() {
   let stores: WordpressStore[] = [], store: WordpressStore | undefined;
   let products: Product[] = [], drafts = new Map<string, AllegroDraft>();
   let selected = new Set<string>(), editing: AllegroDraft[] = [];
-  let page = 1, view = 'all', busy = false, dirty = false;
+  let page = 1, view = 'all', busy = false, dirty = false, loadFailed = false;
+  let retryBatch: { action: string; ids: string[] } | null = null;
   const feedback = (message: string, error = false) => { get('feedback').textContent = message; get('feedback').dataset.error = String(error); };
   const text = (tag: string, value: string, className = '') => { const element = document.createElement(tag); element.textContent = value; element.className = className; return element; };
   const button = (label: string, action: () => void, className = 'al-button') => { const element = document.createElement('button'); element.type = 'button'; element.className = className; element.textContent = label; element.addEventListener('click', action); return element; };
@@ -47,6 +48,13 @@ export function initAllegroListing() {
   function updateSelection() {
     get('selected').textContent = `Zaznaczono: ${selected.size}`;
     get<HTMLButtonElement>('open-selected').disabled = !selected.size || busy;
+    get<HTMLButtonElement>('run-batch').disabled = !selected.size || busy;
+    get<HTMLButtonElement>('clear-selection').disabled = !selected.size || busy;
+    get<HTMLButtonElement>('select-filtered').disabled = !filtered().length || busy;
+    get('select-filtered').textContent = `Zaznacz wszystkie wyniki (${filtered().length})`;
+    const matching = filtered().filter(product => selected.has(String(product.id))).length;
+    const saved = [...selected].filter(id => drafts.has(id)).length;
+    get('selection-note').textContent = selected.size ? `Zapisane szkice: ${saved}. Poza bieżącymi filtrami: ${selected.size - matching}. Akcja obejmie wszystkie zaznaczone produkty.` : 'Zaznacz produkty na stronie lub wszystkie wyniki wyszukiwania.';
     const visible = visibleProducts(); const checked = visible.filter(item => selected.has(String(item.id))).length;
     const all = get<HTMLInputElement>('select-page'); all.checked = visible.length > 0 && checked === visible.length; all.indeterminate = checked > 0 && checked < visible.length; all.disabled = !visible.length || busy;
   }
@@ -56,7 +64,7 @@ export function initAllegroListing() {
     get('products').replaceChildren();
     for (const product of visibleProducts()) {
       const id = String(product.id), row = document.createElement('tr'), checkCell = document.createElement('td'), check = document.createElement('input');
-      check.type = 'checkbox'; check.checked = selected.has(id); check.setAttribute('aria-label', `Zaznacz ${product.name}`); row.classList.toggle('is-selected', check.checked);
+      check.type = 'checkbox'; check.disabled = busy; check.checked = selected.has(id); check.setAttribute('aria-label', `Zaznacz ${product.name}`); row.classList.toggle('is-selected', check.checked);
       check.addEventListener('change', () => { if (check.checked) selected.add(id); else selected.delete(id); row.classList.toggle('is-selected', check.checked); updateSelection(); }); checkCell.append(check);
       const nameCell = document.createElement('td'); nameCell.append(identity(product));
       const price = product.price != null && product.price !== '' && Number.isFinite(Number(product.price)) ? `${Number(product.price).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${product.currency || 'PLN'}` : '—';
@@ -70,14 +78,16 @@ export function initAllegroListing() {
     get('page-label').textContent = `Strona ${page} z ${pages}`;
     get<HTMLButtonElement>('prev').disabled = busy || page <= 1; get<HTMLButtonElement>('next').disabled = busy || page >= pages;
     get('empty').hidden = busy || items.length > 0;
-    get('empty-title').textContent = !store ? 'Wybierz magazyn produktów' : !products.length ? 'Magazyn jest pusty' : view === 'drafts' ? 'Brak szkiców dla tych filtrów' : 'Nie znaleziono produktów';
-    get('empty-description').textContent = !store ? 'Dodaj połączenie WooCommerce w Integracjach, aby przygotowywać oferty.' : !products.length ? 'Zaimportuj produkty ze sklepu, a następnie wróć do wystawiania.' : 'Zmień filtry lub przygotuj nowy szkic z listy produktów.';
+    get('empty-title').textContent = loadFailed ? 'Nie udało się wczytać magazynu' : !store ? 'Wybierz magazyn produktów' : !products.length ? 'Ten magazyn jest pusty' : view === 'drafts' ? 'Brak szkiców dla tych filtrów' : 'Nie znaleziono produktów';
+    get('empty-description').textContent = loadFailed ? 'Sprawdź komunikat powyżej i kliknij „Odśwież”. Błąd odczytu nie oznacza braku zaimportowanych produktów.' : !store ? 'Dodaj połączenie WooCommerce w Integracjach, aby przygotowywać oferty.' : !products.length ? (stores.length > 1 ? 'Wybierz inne połączenie w polu „Magazyn”. Produkty mogą być zapisane pod innym połączeniem tego samego sklepu.' : 'Zaimportuj produkty ze sklepu, a następnie wróć do wystawiania.') : 'Zmień filtry lub przygotuj nowy szkic z listy produktów.';
+    get<HTMLAnchorElement>('empty-import').hidden = loadFailed || products.length > 0;
     updateSelection();
   }
   async function loadCatalog() {
     if (busy) return;
     busy = true; get<HTMLButtonElement>('refresh').disabled = true; get<HTMLSelectElement>('store').disabled = true;
-    products = []; drafts.clear(); selected.clear(); page = 1; render(); feedback('Ładowanie produktów i zapisanych szkiców…');
+    products = []; drafts.clear(); selected.clear(); page = 1; loadFailed = false; render(); feedback('Ładowanie produktów i zapisanych szkiców…');
+    retryBatch = null; get('batch-report').hidden = true;
     try {
       if (!store) { feedback('Dodaj magazyn w zakładce Integracje.'); return; }
       const collected: Product[] = []; let offset = 0, total = 0;
@@ -96,7 +106,7 @@ export function initAllegroListing() {
       const select = get<HTMLSelectElement>('category'); select.replaceChildren(new Option('Wszystkie kategorie', ''));
       for (const [id, name] of [...categories].sort((a, b) => a[1].localeCompare(b[1], 'pl'))) select.add(new Option(name, id));
       feedback('');
-    } catch (error) { feedback(error instanceof Error ? error.message : 'Nie udało się wczytać danych.', true); }
+    } catch (error) { loadFailed = true; feedback(error instanceof Error ? error.message : 'Nie udało się wczytać danych.', true); }
     finally { busy = false; get<HTMLButtonElement>('refresh').disabled = false; get<HTMLSelectElement>('store').disabled = !stores.length; render(); }
   }
   function fromProduct(product: Product): AllegroDraft {
@@ -105,7 +115,58 @@ export function initAllegroListing() {
       images: (product.images || []).map((image: Product) => image.url).filter((url: unknown) => typeof url === 'string' && /^https:\/\//i.test(url)).slice(0, 16),
       condition: '', shippingRatesId: '', returnPolicyId: '', warrantyId: '', handlingTime: '' };
   }
+  async function runBatch(action: string, ids: string[]) {
+    if (busy || !ids.length) return;
+    if (action === 'edit') { openEditor(ids); return; }
+    if (!['save', 'delete', 'check'].includes(action)) return;
+    const existing = ids.filter(id => drafts.has(id)).length;
+    if (action === 'delete' && existing && !window.confirm(`Usunąć zapisane szkice (${existing}) z Sellio? Produkty w magazynie pozostaną bez zmian.`)) return;
+    busy = true; retryBatch = null; feedback('');
+    const controls = Array.from(get('catalog').querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLSelectElement>('input,button,select')).filter(control => !control.disabled);
+    controls.forEach(control => control.disabled = true);
+    get('catalog').setAttribute('aria-busy', 'true');
+    get('batch-report').hidden = false; get('retry-batch').hidden = true; get('batch-errors').replaceChildren();
+    get('batch-report').querySelector<HTMLElement>('h3')!.focus();
+    const progress = get<HTMLProgressElement>('batch-progress'); progress.max = ids.length; progress.value = 0;
+    let success = 0, skipped = 0;
+    const failed: string[] = [];
+    const verb = action === 'save' ? 'Zapisano' : action === 'delete' ? 'Usunięto' : 'Poprawne podstawowe dane';
+    const summary = () => `${verb}: ${success}. Pominięto: ${skipped}. ${action === 'check' ? 'Do poprawy' : 'Błędy'}: ${failed.length}. Przetworzono ${progress.value} z ${ids.length}.`;
+    get('batch-summary').textContent = summary();
+    try {
+      for (const id of ids) {
+        const product = products.find(item => String(item.id) === id);
+        try {
+          if (!product) throw new Error('Nie znaleziono produktu w magazynie.');
+          if ((action === 'save' && drafts.has(id)) || (action === 'delete' && !drafts.has(id))) { skipped++; }
+          else if (action === 'delete') {
+            await api(`${base()}/${encodeURIComponent(id)}`, { method: 'DELETE' }); drafts.delete(id); success++;
+          } else {
+            const draft = normalizeDraft(drafts.get(id) || fromProduct(product));
+            if (action === 'check') {
+              const issues = draftIssues(draft);
+              if (issues.length) throw new Error(`Do uzupełnienia: ${issues.join(', ')}.`);
+            } else {
+              const result = await api(`${base()}/${encodeURIComponent(id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) });
+              drafts.set(id, result.draft);
+            }
+            success++;
+          }
+        } catch (error) {
+          failed.push(id);
+          get('batch-errors').append(text('li', `${product?.name || id} (ID: ${id}): ${(error as Error).message}`));
+        }
+        progress.value++; get('batch-summary').textContent = summary();
+      }
+      const note = action === 'save' ? 'Istniejące szkice zachowano. Nowe szkice są dostępne w zakładce „Zapisane szkice”.' : action === 'delete' ? 'Usunięto wyłącznie szkice w Sellio.' : 'To kontrola podstawowych danych. Nie oznacza akceptacji oferty przez Allegro.';
+      get('batch-summary').textContent = `${summary()} ${note}`;
+      if (failed.length && action !== 'check') { retryBatch = { action, ids: failed }; get('retry-batch').hidden = false; }
+    } finally {
+      busy = false; controls.forEach(control => control.disabled = false); get('catalog').removeAttribute('aria-busy'); render();
+    }
+  }
   function openEditor(ids: string[]) {
+    if (busy || !ids.length) return;
     editing = ids.map(id => structuredClone(drafts.get(id) || fromProduct(products.find(item => String(item.id) === id)!)));
     dirty = editing.some(draft => !drafts.has(draft.productId));
     get('save-state').textContent = dirty ? 'Niezapisane zmiany' : 'Wczytano zapisane szkice';
@@ -183,9 +244,24 @@ export function initAllegroListing() {
   });
   get<HTMLFormElement>('bulk').addEventListener('submit', event => {
     event.preventDefault(); const data = new FormData(get<HTMLFormElement>('bulk'));
-    const category = String(data.get('category') || ''), quantity = String(data.get('quantity') || ''), percent = String(data.get('percent') || '');
-    if (!category && !quantity && !percent) return;
-    for (const draft of editing) { if (category) draft.categoryId = category; if (quantity) draft.quantity = Number(quantity); if (percent && draft.price && Number.isFinite(Number(draft.price.replace(',', '.')))) draft.price = (Number(draft.price.replace(',', '.')) * (1 + Number(percent) / 100)).toFixed(2); }
+    const category = String(data.get('category') || ''), quantity = String(data.get('quantity') || ''), percent = String(data.get('percent') || ''), price = String(data.get('price') || ''), condition = String(data.get('condition') || '');
+    if (!category && !quantity && !percent && !price && !condition) return;
+    if (price && percent) { feedback('Wpisz cenę stałą albo zmianę procentową — wybierz jedno pole.', true); return; }
+    try {
+      const updated = editing.map(draft => {
+        const next = structuredClone(draft);
+        if (category) next.categoryId = category;
+        if (quantity) next.quantity = Number(quantity);
+        if (condition) next.condition = condition;
+        if (price) next.price = Number(price).toFixed(2);
+        if (percent) {
+          if (!next.price || !Number.isFinite(Number(next.price.replace(',', '.')))) throw new Error('Uzupełnij ceny wszystkich szkiców przed zmianą procentową.');
+          next.price = (Number(next.price.replace(',', '.')) * (1 + Number(percent) / 100)).toFixed(2);
+        }
+        return normalizeDraft(next);
+      });
+      editing = updated;
+    } catch (error) { feedback((error as Error).message, true); return; }
     markDirty(); renderEditor(); feedback('Zastosowano zmiany w formularzu. Zapisz szkice, aby je zachować.');
   });
   get('apply-common').addEventListener('click', () => {
@@ -194,6 +270,9 @@ export function initAllegroListing() {
   });
   get('back').addEventListener('click', () => backToCatalog());
   get('open-selected').addEventListener('click', () => openEditor([...selected]));
+  get('run-batch').addEventListener('click', () => void runBatch(field('batch-action').value, [...selected]));
+  get('retry-batch').addEventListener('click', () => { if (retryBatch) void runBatch(retryBatch.action, [...retryBatch.ids]); });
+  get('select-filtered').addEventListener('click', () => { for (const product of filtered()) selected.add(String(product.id)); render(); });
   get('clear-selection').addEventListener('click', () => { selected.clear(); render(); });
   get<HTMLInputElement>('select-page').addEventListener('change', event => { for (const product of visibleProducts()) { if ((event.target as HTMLInputElement).checked) selected.add(String(product.id)); else selected.delete(String(product.id)); } render(); });
   for (const name of ['search', 'category', 'stock', 'sort', 'page-size']) field(name).addEventListener(name === 'search' ? 'input' : 'change', () => { page = 1; render(); });
@@ -202,18 +281,26 @@ export function initAllegroListing() {
   get('prev').addEventListener('click', () => { page--; render(); }); get('next').addEventListener('click', () => { page++; render(); });
   get('refresh').addEventListener('click', () => { if (!stores.length) void initialize(); else void loadCatalog(); });
   field('store').addEventListener('change', () => { store = stores.find(item => item.id === field('store').value); void loadCatalog(); });
-  window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
+  window.addEventListener('beforeunload', event => { if (dirty || busy) { event.preventDefault(); event.returnValue = ''; } });
   async function initialize() {
     try {
-      await loadWordpressStore();
-      const response = await databaseFetch('stores?provider=eq.woocommerce&select=id,external_id,name,site_url,credentials&order=name.asc');
+      // Use the same connection as Products and Import/Export, not the first name match.
+      const productStore = await loadWordpressStore();
+      const response = await databaseFetch('stores?provider=eq.woocommerce&select=id,external_id,name,site_url,credentials,created_at&order=updated_at.desc');
       if (!response.ok) throw new Error('Nie udało się odczytać magazynów. Odśwież, aby spróbować ponownie.');
-      stores = await response.json(); store = stores[0];
+      stores = await response.json(); store = stores.find(entry => entry.id === productStore?.id) || stores[0];
       const select = get<HTMLSelectElement>('store'); select.replaceChildren();
       if (!stores.length) select.add(new Option('Brak połączonych magazynów', ''));
-      for (const entry of stores) select.add(new Option(`WooCommerce · ${entry.name}`, entry.id));
+      for (const entry of stores) {
+        const duplicateName = stores.filter(other => other.name === entry.name).length > 1;
+        const date = entry.created_at ? new Date(entry.created_at) : null;
+        const details = duplicateName ? ` · ${entry.site_url}${date && !Number.isNaN(date.getTime()) ? ` · ${date.toLocaleString('pl-PL')}` : ''}` : '';
+        const source = entry.id === productStore?.id && stores.length > 1 ? ' · katalog z zakładki Produkty' : '';
+        select.add(new Option(`WooCommerce · ${entry.name}${details}${source}`, entry.id));
+      }
+      select.value = store?.id || '';
       await loadCatalog();
-    } catch (error) { feedback((error as Error).message, true); get<HTMLSelectElement>('store').replaceChildren(new Option('Nie udało się pobrać magazynów', '')); render(); }
+    } catch (error) { loadFailed = true; feedback((error as Error).message, true); get<HTMLSelectElement>('store').replaceChildren(new Option('Nie udało się pobrać magazynów', '')); render(); }
   }
   void initialize();
   void authenticatedFetch('/v1/admin/allegro/status').then(async response => {

@@ -5,7 +5,7 @@ export const allegroErrors = {
   session_expired: 'Próba połączenia wygasła lub została już użyta. Kliknij „Połącz konto Allegro”, aby rozpocząć nową próbę.',
   flow_replaced: 'Ta próba połączenia została zastąpiona nowszą lub anulowana. Rozpocznij połączenie ponownie w jednym oknie.',
   consent_denied: 'Nie udzielono zgody na połączenie. Rozpocznij ponownie i zaakceptuj uprawnienia na stronie Allegro.',
-  invalid_scope: 'Allegro odrzuciło zakres uprawnień. Administrator musi porównać uprawnienia aplikacji AlSellio z konfiguracją integracji.',
+  invalid_scope: 'Allegro odrzuciło uprawnienie odczytu danych konta. W panelu Moje aplikacje Allegro otwórz AlSellio → Edytuj i włącz „Odczyt danych konta” (allegro:api:profile:read). Zapisz ustawienia i rozpocznij nowe połączenie w Sellio.',
   authorization_rejected: 'Allegro odrzuciło żądanie autoryzacji. Administrator musi sprawdzić typ aplikacji, adres powrotu i uprawnienia w panelu Allegro.',
   missing_code: 'Allegro nie przekazało poprawnego kodu autoryzacji. Rozpocznij połączenie ponownie z przycisku w Sellio.',
   invalid_client: 'Allegro odrzuciło dane aplikacji. Sprawdź Client ID i Client Secret w Netlify oraz zgodność ze środowiskiem produkcyjnym Allegro.',

@@ -6,7 +6,7 @@ Konto sprzedawcy i aplikacja API to osobne elementy. Właściciel Sellio rejestr
 
 1. Zarejestruj aplikację webową Sellio korzystającą z Authorization Code flow.
 2. Ustaw dokładny Redirect URI: `https://allsellio.netlify.app/api/allegro/callback` (bez końcowego ukośnika).
-3. Wybierz zakresy: `allegro:api:profile:read`, `allegro:api:sale:offers:read`, `allegro:api:sale:offers:write`, `allegro:api:sale:settings:read`, `allegro:api:orders:read`.
+3. Włącz „Odczyt danych konta”: `allegro:api:profile:read`. Obecne połączenie prosi wyłącznie o ten zakres, potrzebny do `GET /me`. Uprawnienia ofert, ustawień sprzedaży i zamówień będą dodane wraz z wdrożeniem tych funkcji i ponowną zgodą użytkownika. Po błędzie `invalid_scope` sprawdź, czy uprawnienie zostało zapisane w produkcyjnej aplikacji AlSellio, której Client ID jest ustawiony w Netlify, a następnie rozpocznij nową próbę w Sellio.
 4. W Netlify → allsellio → Environment variables dodaj `ALLEGRO_CLIENT_ID` i `ALLEGRO_CLIENT_SECRET`. Ustaw kontekst Production i oznacz sekret jako secret. Jeśli plan pozwala, ogranicz zakres do Functions; w planie bez wyboru zakresów pozostaw domyślne zakresy dla sekretów. Nie wklejaj sekretu do czatu ani plików repozytorium.
 5. `ALLEGRO_TOKEN_ENCRYPTION_KEY` musi zawierać 32 losowe bajty w Base64. Sprawdź, czy został już skonfigurowany, zanim wygenerujesz nowy. Nie zastępuj istniejącego klucza: służy do odszyfrowania zapisanych połączeń.
 6. Wdróż ponownie funkcje Netlify, aby dostały nowe zmienne środowiskowe.

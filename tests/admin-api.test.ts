@@ -41,7 +41,7 @@ const request = (path = '', method = 'GET', body?: unknown) => new Request(`http
 });
 const connection = (owner = 'owner-1') => ({ owner_id: owner, secret_hash: 'hash', metadata: { name: 'Shop', site_url: 'https://shop.example.com', catalog_token: 'stored-secret' }, created_at: '', updated_at: '' });
 
-const draftRequest = (store = 'wp_own', method = 'GET', body?: unknown) => new Request(`https://panel.example.com/v1/admin/allegro/stores/${store}/drafts${method === 'PUT' ? '/product-1' : ''}`, {
+const draftRequest = (store = 'wp_own', method = 'GET', body?: unknown) => new Request(`https://panel.example.com/v1/admin/allegro/stores/${store}/drafts${['PUT', 'DELETE'].includes(method) ? '/product-1' : ''}`, {
   method, headers: { Authorization: 'Bearer test-session', 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}),
 });
 const sampleDraft = () => ({ productId: 'product-1', title: 'Lampa', price: '123,40', quantity: 2, categoryId: '', ean: '', description: '', images: [], condition: '', shippingRatesId: '', returnPolicyId: '', warrantyId: '', handlingTime: '' });
@@ -65,6 +65,22 @@ test('Allegro draft validation rejects malformed values before persistence', asy
   assert.equal([...records.keys()].filter(key => key.startsWith('allegro-draft:')).length, 0);
   const noAuth = new Request('https://panel.example.com/v1/admin/allegro/stores/wp_own/drafts');
   assert.equal((await handler(noAuth)).status, 401);
+});
+
+test('Allegro draft deletion is owner scoped, idempotent and preserves warehouse products', async () => {
+  records.set('store:wp_own', connection()); records.set('store:wp_other', connection('other-owner'));
+  records.set('product:wp_own:product-1', { id: 'product-1', price: '90.00' });
+  const ownKey = 'allegro-draft:owner-1:wp_own:product-1', otherKey = 'allegro-draft:other-owner:wp_other:product-1';
+  records.set(ownKey, sampleDraft()); records.set(otherKey, sampleDraft());
+  assert.equal((await handler(draftRequest('wp_other', 'DELETE'))).status, 404);
+  assert.ok(records.has(otherKey));
+  assert.equal((await handler(draftRequest('wp_own', 'DELETE'))).status, 200);
+  assert.equal((await handler(draftRequest('wp_own', 'DELETE'))).status, 200);
+  assert.equal(records.has(ownKey), false); assert.ok(records.has(otherKey));
+  assert.equal(records.get('product:wp_own:product-1').price, '90.00');
+  assert.deepEqual((await (await handler(draftRequest())).json()).drafts, []);
+  const anonymous = new Request('https://panel.example.com/v1/admin/allegro/stores/wp_own/drafts/product-1', { method: 'DELETE' });
+  assert.equal((await handler(anonymous)).status, 401);
 });
 test('catalog offset exposes products beyond the first hundred without duplicates', async () => {
   records.set('store:wp_own', connection());

@@ -102,6 +102,7 @@ test('Allegro connection setup is disabled until server credentials are configur
   await setup(page);
   await page.route('**/v1/admin/allegro/status', route => route.fulfill({ json: { configured: false, connected: false, account: null } }));
   await page.goto('/admin/integracje');
+  await page.getByRole('link', { name: 'Konfiguruj Allegro', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Połącz konto Allegro', exact: true })).toBeDisabled();
   await expect(page.locator('[data-allegro-setup]')).toBeVisible();
   await expect(page.locator('[data-allegro-state]')).toHaveText('Wymaga konfiguracji');
@@ -176,7 +177,119 @@ test('Allegro does not offer new edits when existing drafts failed to load', asy
   await page.goto('/admin/allegro/wystawianie');
   await expect(page.locator('[data-feedback]')).toHaveText('Nie udało się odczytać szkiców');
   await expect(page.locator('[data-products] tr')).toHaveCount(0);
+  await expect(page.locator('[data-empty-title]')).toHaveText('Nie udało się wczytać magazynu');
+  await expect(page.locator('[data-empty-import]')).toBeHidden();
   await expect(page.getByRole('button', { name: 'Odśwież', exact: true })).toBeEnabled();
+});
+
+test('Allegro uses the Products connection when duplicate store names include an older empty catalog', async ({ page }) => {
+  await setup(page);
+  const current = { ...store, name: 'Sklep WooCommerce', created_at: '2026-11-24T20:47:51Z' };
+  const empty = { ...store, id: 'old-empty', external_id: 'wp_old', name: current.name, created_at: '2026-11-24T20:26:10Z' };
+  await page.route('https://sellio-test.supabase.co/rest/v1/stores?**', route => {
+    const query = new URL(route.request().url()).searchParams;
+    return route.fulfill({ json: query.get('limit') === '1' ? [current] : [empty, current] });
+  });
+  const items = Array.from({ length: 20 }, (_, index) => ({ id: String(index + 1), name: `Imported product ${index + 1}`, price: '12.00', stock_quantity: 2 }));
+  await page.route('**/v1/admin/wordpress/stores/wp_test/products?**', route => route.fulfill({ json: { products: items, total: items.length } }));
+  await page.route('**/v1/admin/wordpress/stores/wp_old/products?**', route => route.fulfill({ json: { products: [], total: 0 } }));
+  await page.route('**/v1/admin/allegro/stores/*/drafts', route => route.fulfill({ json: { drafts: [] } }));
+  await page.goto('/admin/produkty/lista');
+  await expect(page.locator('[data-products-body] tr')).toHaveCount(20);
+  await page.goto('/admin/allegro/wystawianie');
+  await expect(page.locator('[data-store]')).toHaveValue(current.id);
+  await expect(page.locator('[data-products] tr')).toHaveCount(20);
+  await expect(page.locator('[data-total]')).toHaveText('20');
+  await expect(page.locator('[data-empty]')).toBeHidden();
+  await expect(page.locator('[data-store] option:checked')).toContainText('katalog z zakładki Produkty');
+  await page.locator('[data-store]').selectOption(empty.id);
+  await expect(page.locator('[data-empty-description]')).toContainText('Wybierz inne połączenie');
+  await expect(page.locator('[data-products] tr')).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator('[data-store]')).toHaveValue(current.id);
+  await expect(page.locator('[data-products] tr')).toHaveCount(20);
+});
+
+test('Allegro bulk save spans filtered pages, preserves drafts and retries only failed products', async ({ page }) => {
+  await setup(page);
+  const items = Array.from({ length: 31 }, (_, index) => ({ id: String(index + 1), name: index < 30 ? `Batch ${index + 1}` : 'Other product', price: '12.00', stock_quantity: 2 }));
+  const saved = new Map<string, any>([['1', { productId: '1', title: 'Custom draft title', price: '99.00', quantity: 4, categoryId: '', ean: '', description: '', images: [], condition: '', shippingRatesId: '', returnPolicyId: '', warrantyId: '', handlingTime: '' }]]);
+  const calls: string[] = []; let fail = true;
+  await page.route('**/v1/admin/wordpress/stores/wp_test/products?**', route => route.fulfill({ json: { products: items, total: items.length } }));
+  await page.route('**/v1/admin/allegro/stores/wp_test/drafts', route => route.fulfill({ json: { drafts: [...saved.values()] } }));
+  await page.route('**/v1/admin/allegro/stores/wp_test/drafts/*', async route => {
+    const id = new URL(route.request().url()).pathname.split('/').pop()!; calls.push(id);
+    if (id === '2' && fail) return route.fulfill({ status: 503, json: { error: 'Temporary save failure' } });
+    await new Promise(resolve => setTimeout(resolve, 10));
+    saved.set(id, route.request().postDataJSON());
+    return route.fulfill({ json: { draft: saved.get(id) } });
+  });
+  await page.goto('/admin/allegro/wystawianie');
+  await page.getByLabel('Szukaj produktu').fill('Batch');
+  await page.locator('[data-select-filtered]').click();
+  await expect(page.locator('[data-selected]')).toHaveText('Zaznaczono: 30');
+  await page.locator('[data-run-batch]').click();
+  await expect(page.locator('[data-store]')).toBeDisabled();
+  await expect(page.locator('[data-batch-summary]')).toContainText('Zapisano: 28. Pominięto: 1. Błędy: 1.');
+  expect(calls).toHaveLength(29); expect(calls).not.toContain('1'); expect(calls).not.toContain('31');
+  expect(saved.get('1').title).toBe('Custom draft title');
+  fail = false; calls.length = 0;
+  await page.locator('[data-retry-batch]').click();
+  await expect(page.locator('[data-batch-summary]')).toContainText('Zapisano: 1. Pominięto: 0. Błędy: 0.');
+  expect(calls).toEqual(['2']);
+  await page.reload();
+  await expect(page.locator('[data-draft-count]')).toHaveText('30');
+  await page.getByRole('button', { name: 'Zapisane szkice' }).click();
+  await expect(page.locator('[data-results]')).toContainText('30 z 31');
+  expect(items[0].price).toBe('12.00');
+});
+
+test('Allegro bulk edit validates common prices, saves zero quantity and deletes only confirmed drafts', async ({ page }) => {
+  await setup(page);
+  const items = [1, 2].map(id => ({ id: String(id), name: `Batch ${id}`, price: '12.00', stock_quantity: 2 }));
+  const saved = new Map<string, any>(); let deletes = 0, failDelete = true;
+  await page.route('**/v1/admin/wordpress/stores/wp_test/products?**', route => route.fulfill({ json: { products: items, total: 2 } }));
+  await page.route('**/v1/admin/allegro/stores/wp_test/drafts', route => route.fulfill({ json: { drafts: [...saved.values()] } }));
+  await page.route('**/v1/admin/allegro/stores/wp_test/drafts/*', route => {
+    const id = new URL(route.request().url()).pathname.split('/').pop()!;
+    if (route.request().method() === 'DELETE') {
+      deletes++;
+      if (id === '2' && failDelete) return route.fulfill({ status: 503, json: { error: 'Temporary delete failure' } });
+      saved.delete(id); return route.fulfill({ json: { deleted: true } });
+    }
+    saved.set(id, route.request().postDataJSON()); return route.fulfill({ json: { draft: saved.get(id) } });
+  });
+  await page.goto('/admin/allegro/wystawianie');
+  await page.locator('[data-select-filtered]').click();
+  await page.locator('[data-batch-action]').selectOption('edit'); await page.locator('[data-run-batch]').click();
+  await page.locator('[data-bulk] [name=price]').fill('25.50');
+  await page.locator('[data-bulk] [name=percent]').fill('10');
+  await page.locator('[data-bulk] button').click();
+  await expect(page.locator('[data-feedback]')).toContainText('wybierz jedno pole');
+  await expect(page.locator('[data-field=price]').first()).toHaveValue('12.00');
+  await page.locator('[data-bulk] [name=percent]').fill('');
+  await page.locator('[data-bulk] [name=quantity]').fill('0');
+  await page.locator('[data-bulk] [name=condition]').selectOption('new');
+  await page.locator('[data-bulk] button').click(); await page.locator('[data-save]').click();
+  await expect(page.locator('[data-save-state]')).toHaveText('Wszystkie szkice zapisane na koncie');
+  expect([...saved.values()].every(draft => draft.price === '25.50' && draft.quantity === 0 && draft.condition === 'new')).toBe(true);
+  await page.locator('[data-back]').click();
+  await page.locator('[data-batch-action]').selectOption('check'); await page.locator('[data-run-batch]').click();
+  await expect(page.locator('[data-batch-summary]')).toContainText('Do poprawy: 2');
+  await expect(page.locator('[data-batch-errors]')).toContainText('ilość');
+  await page.locator('[data-batch-action]').selectOption('delete');
+  page.once('dialog', dialog => dialog.dismiss()); await page.locator('[data-run-batch]').click(); expect(deletes).toBe(0);
+  page.once('dialog', dialog => dialog.accept()); await page.locator('[data-run-batch]').click();
+  await expect(page.locator('[data-batch-summary]')).toContainText('Usunięto: 1. Pominięto: 0. Błędy: 1.');
+  await expect(page.locator('[data-draft-count]')).toHaveText('1');
+  failDelete = false; page.once('dialog', dialog => dialog.accept()); await page.locator('[data-retry-batch]').click();
+  await expect(page.locator('[data-batch-summary]')).toContainText('Usunięto: 1. Pominięto: 0. Błędy: 0.');
+  expect(deletes).toBe(3);
+  await page.reload(); await expect(page.locator('[data-draft-count]')).toHaveText('0');
+  await expect(page.locator('[data-products] tr')).toHaveCount(2);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/allegro-bulk-mobile.png', fullPage: true });
 });
 
 test('redirects to login only when the refresh token is revoked', async ({ page }) => {

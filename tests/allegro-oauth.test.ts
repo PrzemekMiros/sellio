@@ -65,6 +65,7 @@ test('OAuth uses secure browser binding and PKCE; success persists encrypted tok
   assert.match(flow.start.cookie, /HttpOnly; Secure; SameSite=Lax/);
   assert.equal(flow.url.searchParams.get('code_challenge_method'), 'S256');
   assert.equal(flow.url.searchParams.get('redirect_uri'), 'https://allsellio.netlify.app/api/allegro/callback');
+  assert.equal(flow.url.searchParams.get('scope'), 'allegro:api:profile:read', 'Connecting must not request permissions for unfinished sales/order features');
   await client.callback(flow.request);
   const params = new URLSearchParams(String(requests[0].init?.body));
   assert.equal(params.get('client_id'), 'test-application');

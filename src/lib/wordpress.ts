@@ -5,6 +5,7 @@ export type WordpressStore = {
   external_id: string;
   name: string;
   site_url: string;
+  created_at?: string;
   credentials: { backend_url: string; inventory_sync?: Record<string, unknown> };
 };
 

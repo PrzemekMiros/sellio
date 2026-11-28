@@ -1,17 +1,34 @@
 ---
 import Icon from './Icon.astro';
 import '../styles/product-editor.css';
+import '../styles/product-list.css';
 const editorTabs = [
   ['product', 'Produkt'], ['sales', 'Sprzedaż i magazyn'], ['information', 'Informacje'],
   ['media', 'Media'], ['variants', 'Warianty'], ['relations', 'Relacje'],
 ];
 ---
 <section class="wordpress-products" aria-labelledby="wordpress-products-title">
-  <div><span class="eyebrow">KATALOG WOO COMMERCE</span><h2 id="wordpress-products-title">Zaimportowane produkty</h2><p>Produkty są ładowane automatycznie. Ustawienia połączenia znajdziesz w zakładce Integracje.</p></div>
+  <div class="products-heading">
+    <div><span class="eyebrow">KATALOG PRODUKTÓW</span><h2 id="wordpress-products-title">Lista produktów</h2><p>Produkty ze wszystkich połączonych kanałów sprzedaży w jednym miejscu.</p></div>
+    <div class="products-heading-actions"><a href="/admin/integracje" class="products-filter-button"><Icon name="sliders" size={17} />Integracje</a><button class="button button-primary" type="button" data-products-refresh><Icon name="box" size={16} />Odśwież produkty</button></div>
+  </div>
   <form data-products-form hidden><input name="backend_url" type="hidden" /><input name="store_id" type="hidden" /></form>
-  <div class="products-toolbar"><button class="button button-primary" type="button" data-products-refresh><Icon name="box" size={16} />Odśwież produkty</button><a href="/admin/integracje" class="products-integration-link">Ustawienia integracji</a></div>
   <p class="integration-feedback" role="status" data-products-feedback></p>
-  <div class="products-result" data-products-result hidden><p data-products-count></p><div class="products-table-wrap"><table><thead><tr><th>Zdjęcie</th><th>Produkt</th><th>SKU</th><th>Cena</th><th>Stan</th><th>Status</th><th><span class="sr-only">Akcje</span></th></tr></thead><tbody data-products-body></tbody></table></div></div>
+  <div class="products-result" data-products-result hidden>
+    <div class="products-list-toolbar">
+      <label class="products-search"><span class="sr-only">Filtruj produkty</span><span aria-hidden="true">⌕</span><input type="search" placeholder="Filtruj produkty po nazwie lub SKU" data-products-search /></label>
+      <label class="products-sort">Sortowanie<select data-products-sort><option value="default">Domyślne</option><option value="name">Nazwa A–Z</option><option value="price-desc">Cena: od najwyższej</option><option value="stock-desc">Stan: od najwyższego</option></select></label>
+    </div>
+    <div class="products-bulkbar">
+      <label class="products-select-all"><input type="checkbox" data-products-select-all /><span>Zaznacz wszystko</span></label>
+      <span class="products-selected" data-products-selected>0 zaznaczonych</span>
+      <span class="products-spacer"></span>
+      <p data-products-count></p>
+      <label class="products-per-page">Na stronę<select data-products-per-page><option value="20">20</option><option value="50" selected>50</option><option value="100">100</option></select></label>
+    </div>
+    <div class="products-table-wrap"><table><thead><tr><th class="products-check-column"><span class="sr-only">Wybór</span></th><th class="products-image-column"><span class="sr-only">Zdjęcie</span></th><th>Nazwa, SKU, ID</th><th>Stan</th><th>Cena</th><th>Integracje</th><th class="products-actions-column"><span class="sr-only">Akcje</span></th></tr></thead><tbody data-products-body></tbody></table></div>
+    <div class="products-pagination"><button type="button" data-products-prev aria-label="Poprzednia strona">‹</button><span data-products-page>1</span><button type="button" data-products-next aria-label="Następna strona">›</button></div>
+  </div>
 </section>
 <dialog class="product-editor" data-product-editor aria-labelledby="product-editor-title">
   <form method="dialog" class="product-editor-header"><div><span class="eyebrow">EDYCJA PRODUKTU</span><h2 id="product-editor-title" data-editor-title>Produkt</h2></div><button class="icon-button" value="cancel" aria-label="Zamknij edycję">×</button></form>
@@ -74,6 +91,14 @@ const editorTabs = [
   const body = document.querySelector<HTMLTableSectionElement>('[data-products-body]')!;
   const count = document.querySelector<HTMLElement>('[data-products-count]')!;
   const refresh = document.querySelector<HTMLButtonElement>('[data-products-refresh]')!;
+  const search = document.querySelector<HTMLInputElement>('[data-products-search]')!;
+  const sort = document.querySelector<HTMLSelectElement>('[data-products-sort]')!;
+  const perPage = document.querySelector<HTMLSelectElement>('[data-products-per-page]')!;
+  const selectAll = document.querySelector<HTMLInputElement>('[data-products-select-all]')!;
+  const selectedLabel = document.querySelector<HTMLElement>('[data-products-selected]')!;
+  const pageLabel = document.querySelector<HTMLElement>('[data-products-page]')!;
+  const previousPage = document.querySelector<HTMLButtonElement>('[data-products-prev]')!;
+  const nextPage = document.querySelector<HTMLButtonElement>('[data-products-next]')!;
   const editor = document.querySelector<HTMLDialogElement>('[data-product-editor]')!;
   const editorForm = document.querySelector<HTMLFormElement>('[data-product-editor-form]')!;
   const editorTitle = document.querySelector<HTMLElement>('[data-editor-title]')!;
@@ -143,7 +168,9 @@ const editorTabs = [
     return currentConnection;
   }
   let products: Record<string, any>[] = [];
-  const cell = (value: unknown) => { const td = document.createElement('td'); td.textContent = value === null || value === undefined || value === '' ? '—' : String(value); return td; };
+  let catalogTotal = 0;
+  let currentPage = 1;
+  const selectedProducts = new Set<string>();
   form.addEventListener('submit', async event => {
     event.preventDefault(); result.hidden = true; feedback.textContent = 'Pobieram produkty…';
     const input = new FormData(form); const url = String(input.get('backend_url')).trim().replace(/\/$/, '');
@@ -156,8 +183,8 @@ const editorTabs = [
         if (response.status === 404) throw new Error('Nie znaleziono zapisanego połączenia WooCommerce. Otwórz Integracje i utwórz je ponownie.');
         throw new Error(data.error || `Nie udało się pobrać katalogu (HTTP ${response.status}).`);
       }
-      products = data.products; renderProducts();
-      count.textContent = `Wyświetlono ${data.products.length} z ${data.total} produktów.`; result.hidden = false; feedback.textContent = data.products.length ? '' : 'Produkty nie zostały jeszcze zaimportowane. Otwórz Integracje i utwórz połączenie ponownie albo przejdź do Import/Eksport.';
+      products = data.products; catalogTotal = Number(data.total) || data.products.length; currentPage = 1; selectedProducts.clear(); renderProducts();
+      result.hidden = false; feedback.textContent = data.products.length ? '' : 'Produkty nie zostały jeszcze zaimportowane. Otwórz Integracje i utwórz połączenie ponownie albo przejdź do Import/Eksport.';
     } catch (error) { feedback.textContent = error instanceof TypeError ? 'Nie można połączyć się z backendem. Sprawdź adres połączenia w Integracjach.' : error instanceof Error ? error.message : 'Wystąpił nieznany błąd.'; }
   });
   refresh.addEventListener('click', async () => {
@@ -167,15 +194,53 @@ const editorTabs = [
       for (const [name, value] of Object.entries(saved)) (form.elements.namedItem(name) as HTMLInputElement).value = String(value); form.requestSubmit();
     } catch { feedback.textContent = 'Nie udało się pobrać konfiguracji integracji. Otwórz Integracje i zapisz połączenie ponownie.'; }
   });
+  search.addEventListener('input', () => { currentPage = 1; renderProducts(); });
+  sort.addEventListener('change', () => { currentPage = 1; renderProducts(); });
+  perPage.addEventListener('change', () => { currentPage = 1; renderProducts(); });
+  previousPage.addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderProducts(); } });
+  nextPage.addEventListener('click', () => { currentPage++; renderProducts(); });
+  selectAll.addEventListener('change', () => {
+    for (const product of visibleProducts()) {
+      const id = String(product.id);
+      if (selectAll.checked) selectedProducts.add(id); else selectedProducts.delete(id);
+    }
+    renderProducts();
+  });
+  function filteredProducts() {
+    const query = search.value.trim().toLocaleLowerCase('pl');
+    const filtered = query ? products.filter(product => [product.name, product.sku, product.id].some(value => String(value ?? '').toLocaleLowerCase('pl').includes(query))) : [...products];
+    if (sort.value === 'name') filtered.sort((a, b) => String(a.name ?? '').localeCompare(String(b.name ?? ''), 'pl'));
+    if (sort.value === 'price-desc') filtered.sort((a, b) => Number(b.price ?? 0) - Number(a.price ?? 0));
+    if (sort.value === 'stock-desc') filtered.sort((a, b) => Number(b.stock_quantity ?? 0) - Number(a.stock_quantity ?? 0));
+    return filtered;
+  }
+  function visibleProducts() {
+    const size = Number(perPage.value);
+    return filteredProducts().slice((currentPage - 1) * size, currentPage * size);
+  }
   function renderProducts() {
     body.replaceChildren();
-    for (const product of products) {
-      const row = document.createElement('tr'); const imageCell = document.createElement('td'); const image = product.images?.[0];
-      if (image?.url) { const thumbnail = document.createElement('img'); thumbnail.src = image.url; thumbnail.alt = image.alt || product.name || ''; thumbnail.loading = 'lazy'; thumbnail.className = 'product-thumbnail'; imageCell.append(thumbnail); } else imageCell.textContent = '—';
-      const productCell = document.createElement('td'); const openButton = document.createElement('button'); openButton.type = 'button'; openButton.className = 'product-name-button'; openButton.textContent = product.name || 'Bez nazwy'; openButton.addEventListener('click', () => openEditor(product)); productCell.append(openButton);
-      const actionCell = document.createElement('td'); const editButton = document.createElement('button'); editButton.type = 'button'; editButton.className = 'table-action'; editButton.textContent = 'Edytuj'; editButton.addEventListener('click', () => openEditor(product)); actionCell.append(editButton);
-      row.append(imageCell, productCell, cell(product.sku), cell(product.price ? `${product.price} ${product.currency ?? ''}`.trim() : null), cell(product.stock_quantity), cell(product.status), actionCell); body.append(row);
+    const filtered = filteredProducts(); const size = Number(perPage.value); const pageCount = Math.max(1, Math.ceil(filtered.length / size));
+    currentPage = Math.min(currentPage, pageCount); const visible = visibleProducts();
+    for (const product of visible) {
+      const row = document.createElement('tr'); const productId = String(product.id);
+      const checkCell = document.createElement('td'); checkCell.className = 'products-check-column';
+      const check = document.createElement('input'); check.type = 'checkbox'; check.checked = selectedProducts.has(productId); check.setAttribute('aria-label', `Zaznacz ${product.name || 'produkt'}`);
+      check.addEventListener('change', () => { if (check.checked) selectedProducts.add(productId); else selectedProducts.delete(productId); renderProducts(); }); checkCell.append(check);
+      const imageCell = document.createElement('td'); imageCell.className = 'products-image-column'; const image = product.images?.[0];
+      if (image?.url) { const thumbnail = document.createElement('img'); thumbnail.src = image.url; thumbnail.alt = image.alt || product.name || ''; thumbnail.loading = 'lazy'; thumbnail.className = 'product-thumbnail'; imageCell.append(thumbnail); } else { const placeholder = document.createElement('span'); placeholder.className = 'product-thumbnail product-thumbnail-empty'; placeholder.textContent = '◇'; imageCell.append(placeholder); }
+      const productCell = document.createElement('td'); productCell.className = 'product-main-cell'; const openButton = document.createElement('button'); openButton.type = 'button'; openButton.className = 'product-name-button'; openButton.textContent = product.name || 'Bez nazwy'; openButton.addEventListener('click', () => openEditor(product));
+      const meta = document.createElement('span'); meta.className = 'product-meta'; meta.textContent = `ID ${product.id ?? '—'}  |  SKU ${product.sku || '—'}`; productCell.append(openButton, meta);
+      const stockCell = document.createElement('td'); stockCell.className = 'product-stock'; const stock = product.stock_quantity; stockCell.textContent = stock === null || stock === undefined ? '—' : `${stock} szt.`; if (Number(stock) <= 0) stockCell.classList.add('is-empty');
+      const priceCell = document.createElement('td'); priceCell.className = 'product-price'; priceCell.textContent = product.price ? `${product.price} ${product.currency ?? ''}`.trim() : '—';
+      const integrationsCell = document.createElement('td'); integrationsCell.className = 'product-integrations'; const wooBadge = document.createElement('span'); wooBadge.className = 'integration-pill integration-pill-woo'; wooBadge.textContent = 'WooCommerce'; const statusBadge = document.createElement('span'); statusBadge.className = `integration-pill integration-pill-status status-${product.status || 'unknown'}`; statusBadge.textContent = ({ publish: 'Aktywny', draft: 'Szkic', private: 'Prywatny', pending: 'Oczekujący' } as Record<string, string>)[product.status] || product.status || 'Zaimportowany'; integrationsCell.append(wooBadge, statusBadge);
+      const actionCell = document.createElement('td'); actionCell.className = 'products-actions-column'; const editButton = document.createElement('button'); editButton.type = 'button'; editButton.className = 'product-more-button'; editButton.textContent = '•••'; editButton.setAttribute('aria-label', 'Otwórz menu edycji produktu'); editButton.title = product.name || 'Produkt'; editButton.addEventListener('click', () => openEditor(product)); actionCell.append(editButton);
+      row.append(checkCell, imageCell, productCell, stockCell, priceCell, integrationsCell, actionCell); body.append(row);
     }
+    const visibleIds = visible.map(product => String(product.id)); const selectedVisible = visibleIds.filter(id => selectedProducts.has(id)).length;
+    selectAll.checked = visibleIds.length > 0 && selectedVisible === visibleIds.length; selectAll.indeterminate = selectedVisible > 0 && selectedVisible < visibleIds.length;
+    selectedLabel.textContent = `${selectedProducts.size} zaznaczonych`; count.textContent = search.value ? `${filtered.length} wyników` : `${catalogTotal} produktów`;
+    pageLabel.textContent = `${currentPage} / ${pageCount}`; previousPage.disabled = currentPage <= 1; nextPage.disabled = currentPage >= pageCount;
   }
   function openEditor(product: Record<string, any>) {
     editorForm.reset(); editorFeedback.textContent = ''; editorTitle.textContent = product.name || 'Produkt';

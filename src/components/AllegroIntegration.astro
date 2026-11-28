@@ -1,7 +1,8 @@
 ---
 import Icon from './Icon.astro';
 ---
-<section class="allegro-connection" id="allegro-connection" aria-labelledby="allegro-connection-title">
+<dialog class="allegro-connection" id="allegro-connection" aria-labelledby="allegro-connection-title">
+  <button type="button" class="allegro-dialog-close" data-allegro-close aria-label="Zamknij połączenie z Allegro" autofocus>×</button>
   <header><div><span class="eyebrow">MARKETPLACE · ALLEGRO.PL</span><h2 id="allegro-connection-title">Połączenie z Allegro</h2></div><span class="allegro-connection-state" data-allegro-state>Sprawdzanie…</span></header>
   <p>Połącz konto firmowe przez bezpieczne logowanie na stronie Allegro. Sellio zapisze połączenie na serwerze i będzie automatycznie odnawiać dostęp.</p>
   <div class="allegro-account" data-allegro-account hidden><strong data-allegro-login></strong><span data-allegro-checked></span></div>
@@ -9,13 +10,40 @@ import Icon from './Icon.astro';
   <div class="allegro-connection-actions"><button type="button" class="button button-primary" data-allegro-connect disabled><Icon name="plug" size={16} />Połącz konto Allegro</button><button type="button" class="button" data-allegro-check hidden>Sprawdź połączenie</button><button type="button" class="button" data-allegro-refresh>Odśwież status</button><button type="button" class="button" data-allegro-disconnect hidden>Odłącz od Sellio</button></div>
   <p class="allegro-connection-feedback" data-allegro-feedback role="status" aria-live="polite"></p>
   <small>Połączenie konta nie publikuje ofert. Formularz wystawiania nadal zapisuje szkice; obsługa publikacji wymaga kolejnego etapu integracji.</small>
-</section>
+</dialog>
 <script>
   import { authenticatedFetch } from '../lib/auth';
   import { allegroErrors, allegroErrorCode } from '../lib/allegro-errors';
   type Status = { configured: boolean; connected: boolean; reconnect?: boolean; account: { id: string; login: string } | null; checkedAt?: string };
-  const root = document.querySelector<HTMLElement>('#allegro-connection')!;
+  const root = document.querySelector<HTMLDialogElement>('#allegro-connection')!;
   const get = <T extends HTMLElement = HTMLElement>(name: string) => root.querySelector<T>(`[data-allegro-${name}]`)!;
+  const triggers = document.querySelectorAll<HTMLElement>('[data-open-allegro-setup]');
+  let opener: HTMLElement | null = null;
+  const openDialog = () => { if (!root.open) root.showModal(); };
+  triggers.forEach(trigger => trigger.addEventListener('click', event => {
+    event.preventDefault(); opener = trigger; openDialog();
+  }));
+  get('close').addEventListener('click', () => root.close());
+  const outsideDialog = (event: MouseEvent) => {
+    const rect = root.getBoundingClientRect();
+    return event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom;
+  };
+  let backdropPressed = false;
+  root.addEventListener('pointerdown', event => { backdropPressed = event.target === root && outsideDialog(event); });
+  root.addEventListener('click', event => {
+    if (backdropPressed && event.target === root && outsideDialog(event)) root.close();
+    backdropPressed = false;
+  });
+  root.addEventListener('close', () => {
+    const url = new URL(location.href);
+    if (url.hash === '#allegro-connection') { url.hash = ''; history.replaceState(null, '', url); }
+    (opener || triggers[0])?.focus();
+  });
+  const openFromLocation = () => {
+    if (location.hash === '#allegro-connection' || new URL(location.href).searchParams.has('allegro')) openDialog();
+  };
+  window.addEventListener('hashchange', openFromLocation);
+  openFromLocation();
   let state: Status | null = null, busy = false;
   const feedback = (message: string) => get('feedback').textContent = message;
   function render() {
@@ -70,14 +98,19 @@ import Icon from './Icon.astro';
   void load();
 </script>
 <style>
-  .allegro-connection { margin: 24px 0; padding: 24px; border: 1px solid var(--border); background: var(--surface); border-radius: 12px; scroll-margin-top: 24px; }
-  header { display: flex; gap: 16px; justify-content: space-between; align-items: center; }
+  .allegro-connection { box-sizing: border-box; width: min(720px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 32px); margin: auto; padding: 28px; overflow-y: auto; overscroll-behavior: contain; color: var(--text); border: 1px solid var(--border); background: var(--surface); border-radius: 12px; box-shadow: 0 24px 80px #11182033; }
+  .allegro-connection::backdrop { background: #111820a8; backdrop-filter: blur(3px); }
+  :global(body:has(.allegro-connection[open])) { overflow: hidden; }
+  .allegro-dialog-close { position: absolute; top: 14px; right: 14px; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 1px solid var(--border); border-radius: 50%; color: var(--text); background: var(--surface); font: 24px/1 system-ui; cursor: pointer; }
+  .allegro-dialog-close:hover { border-color: var(--accent); color: var(--accent); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  header { display: flex; gap: 16px; justify-content: space-between; align-items: center; padding-right: 36px; }
   h2 { font-size: 20px; margin: 8px 0 0; } p { color: var(--muted); font-size: 13px; line-height: 1.6; }
-  .allegro-connection-state { background: color-mix(in srgb,var(--surface) 85%, #f58b46); color: inherit; padding: 7px 10px; border-radius: 6px; font-size: 12px; }
-  .allegro-account { display: flex; flex-direction: column; gap: 6px; padding: 16px 0; }.allegro-account span,small { font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .allegro-connection-state { background: color-mix(in srgb,var(--surface) 85%, #f58b46); color: inherit; padding: 7px 10px; border-radius: 6px; font-size: 12px; flex-shrink: 0; }
+  .allegro-account { display: flex; flex-direction: column; gap: 6px; padding: 16px 0; overflow-wrap: anywhere; }.allegro-account span,small { font-size: 12px; color: var(--muted); line-height: 1.6; }
   .allegro-setup-note { padding: 16px; border: 1px solid var(--border); border-radius: 8px; margin: 18px 0; }
   .allegro-setup-note a { color: var(--accent); }code { display: block; overflow-wrap: anywhere; font-size: 12px; }
   .allegro-connection-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }.button { color: inherit; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); cursor: pointer; padding: 10px 14px; }.button-primary { background: #d54b0c; color: #fff; border-color: #d54b0c; }
   button:disabled { opacity: .5; cursor: not-allowed; }[hidden] { display: none !important; }.allegro-connection-feedback { font-weight: 600; }.allegro-connection-feedback:empty { display: none; }
-  @media(max-width:600px) { .allegro-connection { padding: 18px; }header { align-items: flex-start; flex-direction: column; } }
+  @media(max-width:600px) { .allegro-connection { padding: 22px 18px; }header { align-items: flex-start; flex-direction: column; }.allegro-connection-actions .button { width: 100%; } }
 </style>

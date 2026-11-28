@@ -18,6 +18,8 @@ Sellio służy do obsługi sprzedaży internetowej, łącząc katalog sklepu z p
 
 ### Uprawnienia API
 
+Obecna autoryzacja prosi wyłącznie o `allegro:api:profile:read` (odczyt danych konta). Pozostałe zakresy poniżej są planowane i nie są teraz żądane. Wdrożenie tych funkcji będzie wymagało rozszerzenia uprawnień aplikacji oraz ponownej zgody użytkownika.
+
 | Scope | Funkcja i wykorzystanie |
 | --- | --- |
 | `allegro:api:profile:read` | Weryfikacja połączenia: odczyt identyfikatora i loginu konta przez `GET /me`. |

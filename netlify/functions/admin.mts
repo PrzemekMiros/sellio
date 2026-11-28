@@ -141,6 +141,12 @@ export default async (request: Request) => {
         return json({ drafts });
       } catch { return json({ error: 'Nie udało się odczytać szkiców. Spróbuj ponownie.' }, 503); }
     }
+    if (request.method === 'DELETE' && draftMatch[2]) {
+      try {
+        await draftBlobs.delete(`${prefix}${draftMatch[2]}`);
+        return json({ deleted: true });
+      } catch { return json({ error: 'Nie udało się usunąć szkicu. Spróbuj ponownie.' }, 503); }
+    }
     if (request.method === 'PUT' && draftMatch[2]) {
       let draft;
       try {

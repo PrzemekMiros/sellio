@@ -55,6 +55,11 @@ export async function previewRequest(input: string, init: RequestInit = {}) {
   }
   const draftBase = '/v1/admin/allegro/stores/wp_local/drafts';
   if (method === 'GET' && url.pathname === draftBase) return Response.json({ drafts: data.allegroDrafts || [] });
+  if (method === 'DELETE' && url.pathname.startsWith(`${draftBase}/`)) {
+    const id = decodeURIComponent(url.pathname.slice(draftBase.length + 1));
+    data.allegroDrafts = (data.allegroDrafts || []).filter(item => item.productId !== id);
+    save(data); return Response.json({ deleted: true });
+  }
   if (method === 'PUT' && url.pathname.startsWith(`${draftBase}/`)) {
     const { normalizeDraft } = await import('./allegro-drafts');
     try {
