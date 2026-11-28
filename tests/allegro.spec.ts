@@ -25,6 +25,9 @@ test('filters, selection, bulk changes and drafts survive reload without changin
   await page.getByLabel('Zaznacz produkty na tej stronie').check();
   await expect(page.locator('[data-selected]')).toHaveText('Zaznaczono: 2');
   await page.getByRole('button', { name: 'Wystaw zaznaczone (formularz)' }).click();
+  await expect(page.getByRole('dialog', { name: 'Ustawienia wystawiania' })).toBeVisible();
+  await page.screenshot({ path: 'test-results/allegro-listing-settings.png', fullPage: true });
+  await page.getByRole('button', { name: 'Przejdź do formularza wystawiania' }).click();
   await expect(page.locator('.al-offer')).toHaveCount(2);
   await page.locator('[data-bulk] [name=category]').fill('12345');
   await page.locator('[data-bulk] [name=percent]').fill('10');

@@ -46,6 +46,41 @@ import '../styles/allegro-listing.css';
     </div>
     <section class="al-card al-batch-report" data-batch-report hidden aria-labelledby="al-batch-title"><h3 id="al-batch-title" tabindex="-1">Wynik akcji masowej</h3><p data-batch-summary role="status" aria-live="polite"></p><progress data-batch-progress value="0" max="1" aria-label="Postęp akcji masowej"></progress><ul data-batch-errors></ul><button class="al-button" type="button" data-retry-batch hidden>Ponów nieudane</button></section>
   </section>
+  <dialog class="al-listing-settings" data-listing-settings aria-labelledby="al-listing-settings-title">
+    <form data-listing-settings-form>
+      <header><h2 id="al-listing-settings-title">Ustawienia wystawiania</h2><button type="button" class="al-dialog-close" data-listing-settings-close aria-label="Zamknij">×</button></header>
+      <div class="al-dialog-body">
+        <section class="al-settings-section">
+          <h3>Produktyzacja</h3>
+          <div class="al-settings-info"><Icon name="info" size={19} /><p>Czy chcesz połączyć ofertę z innymi ofertami tego produktu? Produktyzacja to grupowanie ofert z tym samym produktem po stronie marketu. Więcej informacji znajdziesz w naszej bazie wiedzy.</p></div>
+          <fieldset class="al-radio-list" aria-label="Sposób produktyzacji">
+            <label><input type="radio" name="productization" value="create" />Utwórz nowy produkt w produktyzacji, nie próbuj dopasowywać</label>
+            <label><input type="radio" name="productization" value="search" />Od razu wyszukaj ofertę w produktyzacji</label>
+            <label><input type="radio" name="productization" value="single" />Od razu wyszukaj ofertę w produktyzacji i dopasuj jeśli znaleziono tylko jeden produkt</label>
+            <label><input type="radio" name="productization" value="first" />Od razu wyszukaj ofertę w produktyzacji i dopasuj pierwszą znalezioną ofertę z listy</label>
+            <label><input type="radio" name="productization" value="create-if-missing" />Od razu wyszukaj ofertę w produktyzacji, w przypadku braku dopasowania utwórz nowy produkt</label>
+          </fieldset>
+          <div class="al-match-settings">
+            <p>Wybierz pola, po których zostaną wyszukane produkty</p>
+            <div class="al-match-controls">
+              <label><input type="radio" name="matchingField" value="gtin" checked />GTIN</label>
+              <label><input type="radio" name="matchingField" value="mpn" />MPN</label>
+              <label><input type="radio" name="matchingField" value="name" />Nazwa</label>
+              <select name="language" aria-label="Język wyszukiwania"><option value="pl">Polski</option><option value="en">Angielski</option><option value="de">Niemiecki</option></select>
+            </div>
+          </div>
+        </section>
+        <section class="al-settings-section al-variant-settings">
+          <h3>Warianty</h3>
+          <fieldset class="al-radio-list" aria-label="Sposób wystawiania wariantów">
+            <label><input type="radio" name="variants" value="none" checked />Nie wystawiaj wariantów</label>
+            <label><input type="radio" name="variants" value="separate" />Wystawiaj wszystkie warianty jako oddzielne oferty</label>
+          </fieldset>
+        </section>
+      </div>
+      <footer><button type="button" class="al-button" data-listing-settings-cancel>Anuluj</button><button type="submit" class="al-button al-primary">Przejdź do formularza wystawiania</button></footer>
+    </form>
+  </dialog>
   <section data-editor hidden aria-labelledby="al-editor-title">
     <div class="al-editor-heading"><div><button type="button" class="al-link" data-back>← Wróć do produktów</button><h2 id="al-editor-title" tabindex="-1">Formularz wystawiania</h2><p>Zmiany dotyczą szkiców ofert. Ceny i stany w magazynie pozostają bez zmian.</p></div><span class="al-count" data-editing-count></span></div>
     <form data-bulk class="al-card al-bulk"><div><strong>Operacje na wszystkich szkicach w formularzu</strong><p>Puste pola pozostawią dotychczasowe wartości. Wpisz cenę stałą albo zmianę procentową.</p></div><label>ID kategorii Allegro<input name="category" inputmode="numeric" pattern="[0-9]*" placeholder="np. 12345" /></label><label>Ilość<input name="quantity" type="number" min="0" step="1" placeholder="Bez zmian" /></label><label>Cena stała<input name="price" type="number" min="0" max="999999999" step="0.01" placeholder="Bez zmian" /></label><label>Zmień ceny o (%)<input name="percent" type="number" min="-100" max="10000" step="0.01" placeholder="np. 10" /></label><label>Stan produktu<select name="condition"><option value="">Bez zmian</option><option value="new">Nowy</option><option value="used">Używany</option><option value="refurbished">Odnowiony</option></select></label><button class="al-button" type="submit">Zastosuj</button></form>

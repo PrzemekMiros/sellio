@@ -12,6 +12,7 @@ export function initAllegroListing() {
   let stores: WordpressStore[] = [], store: WordpressStore | undefined;
   let products: Product[] = [], drafts = new Map<string, AllegroDraft>();
   let selected = new Set<string>(), editing: AllegroDraft[] = [];
+  let pendingEditorIds: string[] = [];
   let page = 1, view = 'all', busy = false, dirty = false, loadFailed = false;
   let retryBatch: { action: string; ids: string[] } | null = null;
   const feedback = (message: string, error = false) => { get('feedback').textContent = message; get('feedback').dataset.error = String(error); };
@@ -121,7 +122,7 @@ export function initAllegroListing() {
       const select = get<HTMLSelectElement>('category'); select.replaceChildren(new Option('Pokaż wszystkie produkty', ''));
       for (const [id, name] of [...categories].sort((a, b) => a[1].localeCompare(b[1], 'pl'))) select.add(new Option(name, id));
       feedback('');
-    } catch (error) { loadFailed = true; root.querySelector<HTMLDetailsElement>('.al-filter-panel')!.open = true; feedback(error instanceof Error ? error.message : 'Nie udało się wczytać danych.', true); }
+    } catch (error) { loadFailed = true; root!.querySelector<HTMLDetailsElement>('.al-filter-panel')!.open = true; feedback(error instanceof Error ? error.message : 'Nie udało się wczytać danych.', true); }
     finally { busy = false; get<HTMLButtonElement>('refresh').disabled = false; get<HTMLSelectElement>('store').disabled = !stores.length; render(); }
   }
   function fromProduct(product: Product): AllegroDraft {
@@ -189,6 +190,15 @@ export function initAllegroListing() {
     root!.querySelector('[data-step="catalog"]')!.removeAttribute('aria-current'); root!.querySelector('[data-step="editor"]')!.setAttribute('aria-current', 'step');
     get<HTMLFormElement>('bulk').reset(); root!.querySelectorAll<HTMLInputElement>('[data-common]').forEach(input => input.value = '');
     feedback(''); renderEditor(); document.getElementById('al-editor-title')!.focus();
+  }
+  function closeListingSettings() {
+    get<HTMLDialogElement>('listing-settings').close();
+    pendingEditorIds = [];
+  }
+  function openListingSettings(ids: string[]) {
+    if (busy || !ids.length) return;
+    pendingEditorIds = ids;
+    get<HTMLDialogElement>('listing-settings').showModal();
   }
   function editorField(draft: AllegroDraft, key: keyof AllegroDraft, label: string, type = 'text', className = '') {
     const wrapper = text('label', label, className);
@@ -284,7 +294,27 @@ export function initAllegroListing() {
     markDirty(); renderEditor(); feedback('Wspólne ustawienia zastosowane. Zapisz szkice, aby je zachować.');
   });
   get('back').addEventListener('click', () => backToCatalog());
-  get('open-selected').addEventListener('click', () => openEditor([...selected]));
+  get('open-selected').addEventListener('click', () => openListingSettings([...selected]));
+  get<HTMLFormElement>('listing-settings-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const settings = Object.fromEntries(new FormData(event.currentTarget as HTMLFormElement).entries());
+    localStorage.setItem('sellio-allegro-listing-settings-v1', JSON.stringify(settings));
+    const ids = [...pendingEditorIds];
+    get<HTMLDialogElement>('listing-settings').close(); pendingEditorIds = [];
+    openEditor(ids);
+  });
+  for (const name of ['listing-settings-close', 'listing-settings-cancel']) get(name).addEventListener('click', closeListingSettings);
+  get<HTMLDialogElement>('listing-settings').addEventListener('cancel', () => { pendingEditorIds = []; });
+  try {
+    const settings = JSON.parse(localStorage.getItem('sellio-allegro-listing-settings-v1') || '{}');
+    for (const [name, value] of Object.entries(settings)) {
+      const controls = root.querySelectorAll<HTMLInputElement | HTMLSelectElement>(`[data-listing-settings-form] [name="${CSS.escape(name)}"]`);
+      for (const control of controls) {
+        if (control instanceof HTMLInputElement) control.checked = control.value === value;
+        else if (typeof value === 'string') control.value = value;
+      }
+    }
+  } catch {}
   get('run-batch').addEventListener('click', () => void runBatch(field('batch-action').value, [...selected]));
   get('retry-batch').addEventListener('click', () => { if (retryBatch) void runBatch(retryBatch.action, [...retryBatch.ids]); });
   get('select-filtered').addEventListener('click', () => { for (const product of filtered()) selected.add(String(product.id)); render(); });
